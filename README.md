@@ -38,7 +38,7 @@
 1、使用**ABS材料**3D打印，尤其是夹魔方的结构件，对强度要求较高。
 
 
-## 单片机固件编译
+## 单片机固件编译(./src,平均还原步骤数在32步左右的版本，硬件上不需要外挂1Gbit FLASH)
 推荐使用Linux系统进行开发，可按照官方文档中的脚本搭建开发环境。
 不推荐Windows系统下搭建，坑很多的。
 
@@ -61,6 +61,30 @@ stage=2, R2 D' F2 D2 R2 D R2 D' B2 D'
 stage=3, B2 R2 U2 B2 U2 L2 U2 L2 F2 R2 B2 
 ````
 
+## 单片机固件编译(./src_21_step,平均还原步骤数在21步左右的版本)
+
+生成查找表，并且进行验证（可选步骤）
+
+运行完成后，得到lookup.dat,文件大小大约70MB
+````
+cd ./src_21_step/verify_on_pc
+pypy3 prun.py
+make
+./solve
+````
+
+
+编译单片机固件
+````
+待补充，正在开发
+cd ./src_21_step/mcu
+
+````
+刷写SPI NAND FLASH
+````
+待补充，正在开发
+cd ./src_21_step/prog_flash
+````
 
 
 
