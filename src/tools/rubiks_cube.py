@@ -1,7 +1,8 @@
-#!/usr/bin/python3
+#!/usr/bin/pypy3
 #color_sample 用于规划颜色扫描方式的辅助程序
 import random
-
+from collections import deque
+import copy
 # UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR
 # 棱块状态+方向x16
 # 与参考方向一致0，与参考方向不一致1
@@ -123,78 +124,16 @@ route_map = {
         "B2": ((0, 1, 6, 3, 4, 5, 2, 7, 8, 9, 11, 10), (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), (0, 6, 7, 3, 4, 5, 1, 2), (0, 0, 0, 0, 0, 0, 0, 0))
     }
 class Cube():
-    def __init__(self,
-                 ep = [UF, UR, UB, UL,DF, DR, DB, DL, FR, FL, BR, BL],
-                 er = [0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
-                 cp = [UFR, URB, UBL, ULF, DRF, DFL, DLB, DBR],
-                 cr = [0,   0,   0,   0,   0,   0,   0,   0  ],
-                 step = []):
-        self.ep = ep
-        self.er = er
-        self.cp = cp
-        self.cr = cr
-        self.step = step
+    def __init__(self):
+        self.ep = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] # 楞块位置
+        self.er = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0]  # 楞块方向
+        self.cp = [0, 1, 2, 3, 4, 5, 6, 7] # 角块位置 
+        self.cr = [0, 0, 0, 0, 0, 0, 0, 0] # 角块方向
+        self.step = 0
+        self.last_step = "X"
         self.scan_set = set()
-        self.scan_set_2 = set()
         self.face = 'F' #靠近电机2的面
     
-    def get_tuple(self):
-        return tuple(self.ep + self.er + self.cp + self.cr)
-    
-    # 获取表示魔方状态的字符串
-    str_all        = 0
-    str_edge_8     = 1
-    str_edge_4     = 2
-    str_corner     = 3
-    str_edge_dir   = 4
-    str_corner_dir = 5
-    str_edge       = 6
-    str_corner_dir_mid_edge = 7
-    def get_str(self, mode=str_all):
-        base = ('0','1','2','3','4','5','6','7','8','9',
-                'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V')
-        if mode == Cube.str_all:
-            out=[0]*20
-            for i in range(0,12):
-                out[i] = base[self.ep[i] + self.er[i] * 16]
-            for i in range(0,8):
-                out[i+12] = base[self.cp[i] + self.cr[i] * 8]
-        elif mode == Cube.str_edge_8:
-            out=[0]*8
-            for i in range(0,8):
-                out[i] = base[self.ep[i]]
-        elif mode == Cube.str_edge_4:
-            out=[0]*4
-            for i in range(0,4):
-                out[i] = base[self.ep[i+8]]
-        elif mode == Cube.str_corner:
-            out=[0]*8
-            for i in range(0,8):
-                out[i] = base[self.cp[i]]
-        elif mode == Cube.str_edge_dir:
-            out=[0]*12
-            for i in range(0,12):
-                out[i] = base[self.er[i]]
-        elif mode == Cube.str_edge:
-            out=[0]*12
-            for i in range(0,12):
-                out[i] = base[self.ep[i]]
-        elif mode == Cube.str_corner_dir:
-            out=[0]*8
-            for i in range(0,8):
-                out[i] = base[self.cr[i]]
-        elif mode == Cube.str_corner_dir_mid_edge:
-            out1  = [0]*8
-            out2 = [0]*4
-            for i in range(0,8):
-                out1[i] = base[self.cr[i]]
-            for i in range(0,4):
-                out2[i] = base[self.ep[i+8]]
-            out2.sort()
-            out = out1+out2
-        else:
-            out=[]
-        return ''.join(out)
     
     def from_face_54(self, cube_str):
         # 54个面的表示方式，转换为棱块角块表示方式
@@ -267,7 +206,8 @@ class Cube():
     def get_face_54_with_address(self):
         # 转换为54个面的状态,带位置编号
         cube_str = [' ']*54;
-
+        for i in range(0,6):
+            cube_str[4+9*i] = ('U5','R5','F5','D5','L5','B5')[i]
         for i in range(0,12):
             index_a = int(edge_to_face[i][1][1]) + facs_offset_dict[edge_to_face[i][1][0]] - 1
             index_b = int(edge_to_face[i][2][1]) + facs_offset_dict[edge_to_face[i][2][0]] - 1
@@ -314,14 +254,15 @@ class Cube():
         self.er = new_er
         self.cp = new_cp
         self.cr = new_cr
-        self.step = new_step
-    def route_scan(self, dir):
+    def route_scan(self, dir, en_log=False):
+        if en_log:
+            log=""
         # 旋转魔方,返回旋转过的状态
         new_ep = [0]*12
         new_er = [0]*12
         new_cp = [0]*8
         new_cr = [0]*8
-        new_step = self.step + [dir]
+        #new_step = self.step + [dir]
         r = route_map[dir]
         for i in range(0,12):
             new_ep[i] = self.ep[r[0][i]]
@@ -332,7 +273,8 @@ class Cube():
             
         # 记录旋转过程中可以扫描颜色的面
         s = self.get_face_54_with_address()
-        print("route", dir)
+        if en_log:
+            log += "route " + dir + '\n'
         if(dir[0] == 'U' or dir[0] == 'D'):
             # UD面旋转时可记录颜色的位置
             #          U1 U2 U3 U6 U9 U8 U7 U4
@@ -358,9 +300,11 @@ class Cube():
             x = 0
             for i in lst:
                 if s[i] in self.scan_set:
-                    print("scan\033[32m", s[i], "\033[0m")
+                    if en_log:
+                        log += "scan\033[32m " + s[i] + " \033[0m \n"
                 else:
-                    print("scan", s[i],"angle",x)
+                    if en_log:
+                        log += "scan " + s[i] + " " + dir[0] + " "+ str(x) + '\n'
                 x+=1
                 self.scan_set.add(s[i])
         else:
@@ -381,39 +325,42 @@ class Cube():
                               "BF":2, "BR":3, "BB":0, "BL":1,
                               "LF":1, "LR":2, "LB":3, "LL":0}
             flip_time = flip_time_dict[self.face + dir[0]];
-            print("flip", flip_time*90)
+            if en_log:
+                log += "flip "+str(flip_time*90)+ '\n'
             if flip_time != 0:
                 lst_u = order_u_flip[d_flip[self.face]: d_flip[self.face]+1+flip_time*2]
                 lst_d = order_d_flip[d_flip[self.face]: d_flip[self.face]+1+flip_time*2]
                 x = 0
                 for i in lst_u:
                     if s[i] in self.scan_set:
-                        print("scan\033[32m", s[i], "\033[0m")
+                        if en_log:
+                            log += "scan\033[32m "+s[i]+" \033[0m\n"
                     else:
-                        print("scan", s[i],"u",x)
+                        if en_log:
+                            log += "scan "+s[i]+" u "+str(x)+ '\n'
                     x+=1
                     self.scan_set.add(s[i])
                 x = 0
                 for i in lst_d:
                     if s[i] in self.scan_set:
-                        print("scan\033[32m", s[i], "\033[0m")
+                        if en_log:
+                            log += "scan\033[32m "+ s[i]+ " \033[0m\n"
                     else:
-                        print("scan", s[i],"d",x)
+                        if en_log:
+                            log += "scan "+ s[i]+" d "+str(x)+ '\n'
                     x+=1
                     self.scan_set.add(s[i])
             self.face = dir[0]
-        
-        for i in range(0,9):
-            self.scan_set_2.add(s[i])
-        for i in range(27,36):
-            self.scan_set_2.add(s[i])
-        
             
         self.ep = new_ep
         self.er = new_er
         self.cp = new_cp
         self.cr = new_cr
-        self.step = new_step
+        self.step += 1
+        self.last_step = dir
+        
+        if en_log:
+            return log
 
     def draw(self):
         cube_str = self.get_face_54_with_address()
@@ -435,8 +382,8 @@ class Cube():
                 code = cube_str[x]
                 if code in self.scan_set:
                     print("\033[32m"+code + "\033[0m ", end='')
-                elif code in self.scan_set_2:
-                    print("\033[33m"+code + "\033[0m ", end='')
+                #elif code in self.scan_set_2:
+                    #print("\033[33m"+code + "\033[0m ", end='')
                 else:
                     print(code + " ", end='')
     def random(self):
@@ -488,54 +435,66 @@ def test_route_2():
 def color_sample():
     cube=Cube()
 
-    #cube.draw()
-    cube.route_scan("L")
-    cube.route_scan("R")
+    log=""
+    for x in ["L'", "R'", "F'", "B'", 'F2']:
+        log += cube.route_scan(x,True)
+    log += cube.route_scan("L",True)
+    log += cube.route_scan("R",True)
 
-    cube.route_scan("F")
-    cube.route_scan("B")
+    log += cube.route_scan("F",True)
+    log += cube.route_scan("B",True)
 
-    cube.route_scan("R")
-    cube.route_scan("L")
+    log += cube.route_scan("R",True)
+    log += cube.route_scan("L",True)
 
-    cube.route_scan("F")
-    cube.route_scan("B")
+    log += cube.route_scan("F",True)
+    log += cube.route_scan("B",True)
 
     # 转到F面，不对F面进行旋转操作
-    cube.route_scan("F")
-    cube.route_scan("F'")
+    log += cube.route_scan("F",True)
+    log += cube.route_scan("F'",True)
+    
 
+    tmp = cube.get_face_54_with_address()
+    for i in range(54):
+        log = log.replace(tmp[i],"%s(%d)"%(tmp[i],i))
     cube.draw()
-    for i in range(0,54):
-        print("%02d "%i,end='')
-    print("")
-    print(" ".join(cube.get_face_54_with_address()))
+    print(log)
+    print(len(cube.scan_set))
 
+def search(deep):
+    cube = Cube()
+    q = deque()
+    q.append(cube)
+    steps_record = [None]*18
+    count = 0
+    while len(q) != 0:
+        c = q.pop()
+        count += 1
+        if(count % 5000 == 0):
+            print("count=%d, len(q)=%d"%(count,len(q)))
+        #print(c.last_step,c.step)
+        if(c.step >= 1):
+            steps_record[c.step - 1] = c.last_step
+        if len(c.scan_set) >= 48:
+            print(len(c.scan_set), c.step)
+            print(steps_record[0 : c.step])
+            return True
+        if c.step < deep:
+            for i in ("L","L'","L2","R","R'","R2","U","U'","U2","D","D'","D2","F","F'","F2","B","B'","B2"):
+                # 如果旋转的面和上次旋转的一致，舍弃，可减少1/6的情况
+                if c.last_step[0] != i[0]:
+                    c_new = copy.deepcopy(c)
+                    c_new.route_scan(i, False)
+                    if(len(c_new.scan_set) > len(c.scan_set)):
+                        q.append(c_new)
+    print("not find")
+    return False
+    
+# for i in range(8):
+#     print("deep=",i)
+#     if search(i):
+#         break
+#print("deep=",i)
 
-#color_sample()
-#print(cube.get_ep_and_cp())
-#for i in range(0,10000):
-#    cube=Cube()
-#    cube.random()
-#    s = "".join(cube.get_face_54())
-#    print(s)
-
-test_case = {
-"URBUUURBFDBDURFDFDURLBFLBDRUBFRDLFRBRFBLLLUFLLUFDBDRDL",
-"LDFLUBLLUFULFRRRRFBBLUFRBDFRBDUDBRDRDFUDLFDLUDRBUBFULB",
-"UFULUBDFLDDLLRRLRRRRBUFFLRUFUBLDDDUUBDBLLFRUDFDRBBBFBF",
-"UULDURUDBDFBURLDBRLLRLFRFDRLBFRDRLLBRFBULUDDUDBFBBFUFF",
-"BDLUURLDRUBDDRFLLRBRBLFFDUFFRULDBLFUDBUFLUBDRFBRRBUFLD",
-"RULDUFRLULDDBRFRRFDDBUFRDLBRUULDUBRUFRFBLFDBBFBULBDLFL",
-"RBDBULFFDLDLBRUBBBLRFUFLULRRFDFDDBDLDRUULLUDFBUFRBFURR",
-"BLLUULBULUUDLRDBDBDBFLFFDUUFRRRDRFFLLFRDLBRBRFDDBBFURU",
-"BFDBUBFDUFDLRRBRLLRRLLFUUDDLLBFDURDDRLDULFUUBBRURBBFFF",
-"DBFRUUUURULLLRBBRDFFBDFDFLLUFUUDUDFLFFLDLBBBRDLRRBRBDR",
-}
-for i in test_case:
-    c = Cube()
-    c.from_face_54(i)
-    print(c.cp)
-    print(c.cr)
-    print(c.ep)
-    print(c.er)
+color_sample()
