@@ -539,8 +539,7 @@ def solve(x, step_limit = 22):
     return s1 + s2
 
 def test_solve():
-    #test_case = load_test_case(1)
-    test_case = ["BRUBUUULLURBRRULDRRDFUFFFRBDDDFDBFLBDUFFLFDDLLBRLBLUBR\n"]
+    test_case = load_test_case(10)
     step_log=[0]*25
     for s in test_case:
         print(s,end='')
@@ -634,7 +633,7 @@ succ = False
 while not succ:
     index_to_class_p2 = load_table("index_to_class_p2", 40320, type_code = "L")
     class_to_index_p2 = load_table("class_to_index_p2", 2768, type_code = "H")
-    if index_to_class != None and class_to_index != None:
+    if index_to_class_p2 != None and class_to_index_p2 != None:
         succ = True
     else:
         creat_index_to_class_table_p2()
