@@ -6,8 +6,8 @@
 //#include "hardware/i2c.h"
 #include "solve.h"
 
-// 步进电机使能信号 低有效
-#define SPEPPER_EN    16
+// 步进电机使能信号 低有效 (20220706 由16改为2)
+#define SPEPPER_EN    2  
 // 步进电机控制信号
 #define SPEPPER_STEP0 11
 #define SPEPPER_DIR0  10
