@@ -129,6 +129,7 @@ static uint8_t flash_busy_wait(void)
 }
 // block_address 0 - 1023
 // 这次从X宝买的FLASH似乎是翻新的，0x000地址有数据，0x800全都是0xff，无法判断坏快。
+// 实测前70MB无坏快，暂不编写坏快处理程序
 /*
 uint8_t flash_bad_block_scan(uint16_t block_address)
 {
@@ -186,7 +187,7 @@ void flash_init(void)
 {
     // Enable SPI 0 at 31.25 MHz and connect to GPIOs
     spi_init(spi0, SPI_FLASH_FREQ);
-    printf("spi_frep=%d\n",spi_set_baudrate(spi0, SPI_FLASH_FREQ));
+    //printf("spi_frep=%d\n",spi_set_baudrate(spi0, SPI_FLASH_FREQ));
     gpio_set_function(SPI0_RX, GPIO_FUNC_SPI);
     gpio_set_function(SPI0_SCK, GPIO_FUNC_SPI);
     gpio_set_function(SPI0_TX, GPIO_FUNC_SPI);
@@ -212,31 +213,32 @@ static void flash_write_enable(void)
     spi_write_blocking(spi0, cmdbuf, sizeof(cmdbuf));
     cs_deselect();
 }
-#if 0
-// 2KB Read
-static void flash_read_page(uint16_t page_address)
+
+// 32 Byte Read
+static void flash_read_32_byte(uint32_t address, uint8_t *buf)
 {
-    uint8_t cmdbuf_1[4] = {FLASH_PAGE_DATA_READ, 0, page_address>>8, page_address&0xff};
-    cs_select();
-    spi_write_blocking(spi0, cmdbuf_1, sizeof(cmdbuf_1));
-    cs_deselect();
-    int flag = flash_busy_wait(); // <60us with ECC, <25us without ECC 
-    uint8_t cmdbuf_2[4] = {FLASH_READ, 0x00, 0x00, 0};
-    uint8_t line_buffer[16];
-    cs_select();
-    spi_write_blocking(spi0, cmdbuf_2, sizeof(cmdbuf_2));
-    for(int i = 0; i < 0x840; i += 16){
-        spi_read_blocking(spi0, 0, line_buffer, 16);
-        printf("%03x: ",i);
-        for(int i = 0; i < 16; i++)
-        {
-            printf("%02x ",line_buffer[i]);
-        }
-        printf("\n");
+    
+    uint16_t page_address = address >> 11;
+    uint16_t data_address = address & 0x7FF;
+    // 如果和上次读取的页一样，不需要重新读。上电自动加载page 0
+    static uint16_t old_page_addrdress = 0;
+    if(old_page_addrdress != page_address){
+        //printf("FLASH_PAGE_DATA_READ.\n");
+        old_page_addrdress = page_address;
+        uint8_t cmdbuf_1[4] = {FLASH_PAGE_DATA_READ, 0, page_address>>8, page_address&0xff};
+        cs_select();
+        spi_write_blocking(spi0, cmdbuf_1, sizeof(cmdbuf_1));
+        cs_deselect();
+        flash_busy_wait(); // <60us with ECC, <25us without ECC 
     }
+    // Read 32 Byte
+    uint8_t cmdbuf_2[4] = {FLASH_READ, data_address>>8, data_address&0xff, 0};
+    cs_select();    
+    spi_write_blocking(spi0, cmdbuf_2, sizeof(cmdbuf_2));
+    spi_read_blocking(spi0, 0, buf, 32);
     cs_deselect();
 }
-#endif
+
 //int _read(int handle, char *buffer, int length); 
 
 // FLASH刷写
@@ -380,3 +382,172 @@ uint32_t flash_crc_all_table(void)
     printf("\nCRC32 = %08X\n", crc);
     return crc;
 }
+
+// ------------------------------ 32 Byte × 4096 缓存 ---------------------------------- //
+//#define BLOCK_SIZE 32
+#define BLOCK_NUM  4096 // 4096
+#define HASH_TABLE_SIZE  8192 // 乘法除法，用2^n可以提高效率，编译器会用移位操作优化
+#define HASH(x) ( (x) % HASH_TABLE_SIZE )
+typedef struct node_struct node_t;
+struct node_struct{
+    uint8_t data[BLOCK_SIZE];
+    uint32_t key;
+    node_t  *p;
+    node_t  *n;
+    node_t  *hash_next;    
+};
+
+// Use 224KB RAM
+typedef struct lru_struct{
+    node_t pool[BLOCK_NUM];
+    node_t *head;
+    node_t *end;
+    node_t *hash_table[HASH_TABLE_SIZE];
+    uint32_t count;
+} lru_t;
+
+lru_t lru = {0};
+
+static void hash_add(node_t *new)
+{
+    uint32_t hash_val = HASH(new -> key);
+    if(lru.hash_table[hash_val] == 0){
+        lru.hash_table[hash_val] = new;
+        new -> hash_next = 0;
+    }else{
+        // 如果存在hash重复
+        node_t *ptr = lru.hash_table[hash_val];
+        while(ptr -> hash_next){
+            ptr = ptr -> hash_next;
+        }
+        ptr -> hash_next = new;
+    }
+    new -> hash_next = 0;
+}
+
+static void hash_remove(int key)
+{
+    node_t *remove = 0;
+    node_t *before_remove = 0;
+    uint32_t hash_value = HASH(key);
+    node_t *ptr = lru.hash_table[hash_value];
+    while(ptr){
+        if(ptr->key == key){
+            remove = ptr;
+            break;
+        }
+        before_remove = ptr;
+        ptr = ptr->hash_next;
+    }
+    if(before_remove){
+        before_remove -> hash_next = remove -> hash_next;
+    }else{
+        lru.hash_table[hash_value] = remove -> hash_next;
+    }
+    remove -> hash_next = 0;
+}
+
+static uint8_t *lru_insert(uint32_t key, uint32_t data_src_addr)
+{
+    node_t *new;
+    if(lru.count < BLOCK_NUM){
+        // 当Cache未满时，新的数据项只需插到双链表头部即可。
+        new = &lru.pool[lru.count++];
+    }else{
+        // 当Cache已满时，将新的数据项插到双链表头部，并删除双链表的尾结点即可。
+        // 从hash表移除
+        hash_remove(lru.end -> key);
+        // 修改删除的尾结点的数据，作为新的数据项使用
+        new = lru.end;
+        lru.end = new -> p;
+        lru.end -> n = 0;
+    }
+    // 将新的数据项插到双链表头部
+    new -> key = key;
+    flash_read_32_byte(data_src_addr, new -> data);// 从FLASH加载
+    new -> n = lru.head;
+    new -> p = 0;
+    if(lru.head){
+        lru.head -> p = new;
+    }else{
+        lru.end = new;
+    }
+    lru.head = new;
+    // 更新hash
+    hash_add(new);
+    return new -> data;
+}
+
+static uint8_t *lru_lookup(uint32_t key)
+{
+    node_t *new = 0;
+    node_t *ptr = lru.hash_table[HASH(key)];
+    while(ptr){
+        if(ptr->key == key){
+            new = ptr;
+            break;
+        }
+        ptr = ptr->hash_next;
+    }
+    if(new){
+        // 每次数据项被查询到时，都将此数据项移动到链表头部。
+        // 删除数据,重新链接前后元素
+        node_t *node_p = new -> p;
+        node_t *node_n = new -> n;
+        if(node_p){
+            node_p -> n = node_n;
+        }else{
+            lru.head = node_n;
+        }
+        if(node_n){
+            node_n -> p = node_p;
+        }else{
+            lru.end = node_p;
+        }
+        // 将数据项插到双链表头部,data不变，只修改位置
+        new -> n = lru.head;
+        new -> p = 0;
+        if(lru.head){
+            lru.head -> p = new;
+        }else{
+            lru.end = new;
+        }
+        lru.head = new;
+        return new -> data;
+    }else{
+        return 0;
+    }
+}
+
+//int debug_find = 0,debug_not_find=0;
+
+// 读取缓存数据，如果没有，从FLASH加载，addr必须是BLOCK_SIZE的整数倍
+uint8_t *get_from_cache(uint32_t addr)
+{
+    int key = addr / BLOCK_SIZE;
+    uint8_t *ret = lru_lookup(key);
+    if(!ret){
+        ret = lru_insert(key, key * BLOCK_SIZE);
+    }
+    return ret;
+}
+
+/*
+void test_case(uint32_t x)
+{
+    uint8_t *buf;
+    absolute_time_t t1 = get_absolute_time();
+    buf=get_from_cache(x);
+    absolute_time_t t2 = get_absolute_time();
+    printf("%x(%dus): ", x, (int)absolute_time_diff_us(t1, t2));
+    for(int i = 0; i < 32; i++){
+        printf("%02x ",buf[i]);
+    }
+    printf("\n");
+}
+void do_flash_test(void){
+    test_case(0);
+    test_case(0x6f34dc/32*32);
+    test_case(0x9e07c/32*32);
+}
+*/

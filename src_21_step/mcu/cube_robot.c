@@ -3,7 +3,7 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "color_detect.h"
-//#include "hardware/i2c.h"
+#include "solve.h"
 #include "spi_flash.h"
 
 // 步进电机使能信号 低有效 (20220706 由16改为2)
@@ -55,11 +55,13 @@ const uint i2c_gpio[2][2] = {{14,15}, {12,13}};
 #ifdef SLOW_MODE
 #define MAX_ACCEL 150000
 #define V_START   (30*RPM)
+#define V_START_SLOW (30*RPM)
 #define V_MAX     (90*RPM)
 #else
-#define MAX_ACCEL 120000
-#define V_START   (150*RPM)
-#define V_MAX     (300*RPM)
+#define MAX_ACCEL    160000
+#define V_START      (170*RPM)
+#define V_START_SLOW (170*RPM)
+#define V_MAX        (300*RPM)
 #endif
 //stepper_move(SPEPPER_STEP2,1600,180*RPM,300*RPM,200000);
 //stepper_move(SPEPPER_STEP2,1600,180*RPM,300*RPM,150000);
@@ -262,7 +264,7 @@ void cube_lfrb(int steps)
     // 步骤2：旋转需要的角度
     stepper_move(MASK_STEPRR_2, steps - 64, V_START, V_MAX, MAX_ACCEL,0);
     // 步骤3：最后一小段要低速运转
-    stepper_move(MASK_STEPRR_2, 64, V_START/2, V_START/2, MAX_ACCEL,0);
+    stepper_move(MASK_STEPRR_2, 64, V_START_SLOW, V_START_SLOW, MAX_ACCEL,0);
     // 步骤4：恢复初始位置
     gpio_put(SPEPPER_DIR2, !dir);
     stepper_move(MASK_STEPRR_2, 256, V_START, V_MAX, MAX_ACCEL,0);
@@ -328,6 +330,8 @@ char cube_tweak(char face_on_stepper_2, char *action, char *action2)
             angle_lfrb = -800;
         }else if (action[1] == '2'){
             angle_lfrb = 1600;
+        }else if (action[1] == '0'){
+            angle_lfrb = 0;
         }else{
             angle_lfrb = 800;
         }
@@ -379,7 +383,10 @@ char cube_tweak(char face_on_stepper_2, char *action, char *action2)
         if(flip_time != 0){
             flip_cube(flip_time * 800);
         }
-        cube_lfrb(angle_lfrb);
+        if(angle_lfrb != 0){
+            cube_lfrb(angle_lfrb);
+        }
+        
     }else{
         // U只能逆时针
         if(face=='U'){
@@ -466,6 +473,7 @@ char cube_tweak_str(char face_on_stepper_2, char *str)
             i += 1;
         }
     }
+    face_on_stepper_2 = cube_tweak(face_on_stepper_2, "F0", 0);// 还原完成后，调整魔方朝向，这个不是必须的
     return face_on_stepper_2;
 }
 
@@ -699,17 +707,18 @@ void main_core1()
         while(gpio_get(BUTTON_1)){
             sleep_ms(10);
         }
+        absolute_time_t t1 = get_absolute_time();
         // 采集每一块的颜色
         cube_get_color();
-        // 等待计算完成后执行对应的动作，后3组可以边计算边执行前面的动作
+        // 等待计算完成后执行对应的动作
         char face = 'F';
-        for(int stage=0; stage<4; stage++){
-            char *solution = (char*)multicore_fifo_pop_blocking();
-            if(solution != 0 && solution[0] != 0){
-                face = cube_tweak_str(face, solution);
-            }
-            
+        char *solution = (char*)multicore_fifo_pop_blocking();
+        if(solution != 0 && solution[0] != 0){
+            face = cube_tweak_str(face, solution);
         }
+        absolute_time_t t2 = get_absolute_time();
+        int tims_cost_in_ms = (int)absolute_time_diff_us(t1, t2) / 1000;
+        printf("Totel time cost %d.%03ds: %s\n", tims_cost_in_ms/1000, tims_cost_in_ms%1000);
     }
 }
 
@@ -719,7 +728,7 @@ void main_core1()
 // MCU的栈较小，因此比较大的数组，放在堆上，防止栈溢出
 uint16_t color_buffer[54*3] = {0}; 
 char cube_str[55] = {0};
-char solution_str[4][55] = {0};
+char solution_str[70] = {0};
 
 int main(void)
 {
@@ -730,6 +739,7 @@ int main(void)
     sleep_ms(10);
     flash_init();
     if(!gpio_get(BUTTON_0)){
+        //do_flash_test();
         if(flash_crc_all_table() != 0xA8093698UL){
             printf("FLASH CRC ERROR. Use prog_flash tool.\n");
             // 2020-07-10改为使用串口传输，USB连续传输数据不稳定，找不到BUG原因
@@ -738,7 +748,14 @@ int main(void)
             printf("FLASH CRC ok.\n");
         }
     }
-
+    /*
+    while(gpio_get(BUTTON_1));
+    absolute_time_t t1 = get_absolute_time();
+    int steps = solve("FLBDUBFDRBDDRRLUUFLLDRFBRLRDFBDDBBURDFURLFLRFLULBBUUFU", solution_str);
+    absolute_time_t t2 = get_absolute_time();
+    int tims_cost_in_ms = (int)absolute_time_diff_us(t1, t2) / 1000;
+    printf("find %d step solution in %dms: %s\n", steps, tims_cost_in_ms, solution_str);
+    */
     gpio_put(SPEPPER_EN, 0);
     multicore_launch_core1(main_core1);
     // 检查颜色传感器是否正常，并且初始化
@@ -776,23 +793,19 @@ int main(void)
             color_buffer[i] = 0;
         }
         printf("color_detect: %s\n", cube_str);
-        /*
+
         if(cube_str[0] != 0){
             // 求解魔方
-            cube_t cube;
-            cube_from_face_54(&cube, cube_str);
-            for(int stage=0; stage<4; stage++){
-                char *p = solution_str[stage];
-                p = solve(stage, &cube, p);
-                printf("stage=%d, %s\n", stage, solution_str[stage]);
-                multicore_fifo_push_blocking((uint32_t)solution_str[stage]);
-            }
+            absolute_time_t t1 = get_absolute_time();
+            int steps = solve(cube_str, solution_str);
+            absolute_time_t t2 = get_absolute_time();
+            int tims_cost_in_ms = (int)absolute_time_diff_us(t1, t2) / 1000;
+            printf("Find %d step solution in %dms: %s\n", steps, tims_cost_in_ms, solution_str);
+            multicore_fifo_push_blocking((uint32_t)solution_str);
         }else{
-            for(int stage=0; stage<4; stage++){
-                multicore_fifo_push_blocking(0);
-            }
+            multicore_fifo_push_blocking(0);
         }
-        */
+        
     }
     return 0;
 }

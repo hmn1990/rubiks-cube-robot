@@ -19,7 +19,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(cube_robot cube_robot.c color_detect.c spi_flash.c)
+add_executable(cube_robot cube_robot.c color_detect.c spi_flash.c solve.c)
 
 pico_set_program_name(cube_robot "cube_robot")
 pico_set_program_version(cube_robot "0.1")

@@ -21,4 +21,5 @@
       "stdio.h": "c",
       "cstdio": "c"
     },
+    "cortex-debug.variableUseNaturalFormat": false,
 }
