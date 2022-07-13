@@ -150,7 +150,7 @@ module stepper_shelf(style=0){
 // ------------------------------------------------------------------
 // 定位弹片，打印4个
 module spring(){
-    spring_height=2;
+    spring_height=2.5;
     translate([-5.5,0,0])
     difference(){
         cylinder(h=spring_height,d=4,center=true);
@@ -158,7 +158,7 @@ module spring(){
     }
     difference(){
         translate([-1.5,0,0]) cube([8.5,38,spring_height],center=true);
-        translate([-4.75+0.8,0,0]) cube([2,30,99],center=true);
+        translate([-5+1.5,0,0]) cube([1.5,30,99],center=true);
         hull(){
             translate([0,-25/2+2,0]) cylinder(h=99, d=3.4,center=true);
             translate([0,-25/2-2,0]) cylinder(h=99, d=3.4,center=true);
@@ -166,6 +166,10 @@ module spring(){
         hull(){
             translate([0,25/2+2,0]) cylinder(h=99, d=3.4,center=true);
             translate([0,25/2-2,0]) cylinder(h=99, d=3.4,center=true);
+        }
+        hull(){
+            translate([-3,+6,0]) cylinder(h=99, d=2,center=true);
+            translate([-3,-6,0]) cylinder(h=99, d=2,center=true);
         }
     }
 }
