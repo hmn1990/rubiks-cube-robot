@@ -52,17 +52,14 @@ const uint i2c_gpio[2][2] = {{14,15}, {12,13}};
 
 #define RPM       (200*16/60)
 //#define SLOW_MODE
-#ifdef SLOW_MODE
-#define MAX_ACCEL 150000
-#define V_START   (30*RPM)
-#define V_START_SLOW (30*RPM)
-#define V_MAX     (90*RPM)
-#else
-#define MAX_ACCEL    160000
-#define V_START      (170*RPM)
-#define V_START_SLOW (170*RPM)
-#define V_MAX        (300*RPM)
-#endif
+
+float MAX_ACCEL;
+float V_START;
+float V_START_SLOW;
+float V_MAX;
+float V_MAX_SLOW;
+
+
 //stepper_move(SPEPPER_STEP2,1600,180*RPM,300*RPM,200000);
 //stepper_move(SPEPPER_STEP2,1600,180*RPM,300*RPM,150000);
 
@@ -235,13 +232,13 @@ void cube_ud(int face_u, int face_d)
     // 步骤2：旋转需要的角度
     int min_val = face_u < face_d ? face_u : face_d;
     if(min_val >= 0)
-        stepper_move(MASK_STEPRR_01, min_val, V_START, V_MAX, MAX_ACCEL,0);
+        stepper_move(MASK_STEPRR_01, min_val, V_START_SLOW, V_MAX_SLOW, MAX_ACCEL,0);
     face_u -= min_val;
     face_d -= min_val;
     if(face_u >= 0)
-        stepper_move(MASK_STEPRR_0, face_u, V_START, V_MAX, MAX_ACCEL,0);
+        stepper_move(MASK_STEPRR_0, face_u, V_START_SLOW, V_MAX_SLOW, MAX_ACCEL,0);
     if(face_d >= 0)
-        stepper_move(MASK_STEPRR_1, face_d, V_START, V_MAX, MAX_ACCEL,0);
+        stepper_move(MASK_STEPRR_1, face_d, V_START_SLOW, V_MAX_SLOW, MAX_ACCEL,0);
     // 步骤3：恢复初始位置
     gpio_put(SPEPPER_DIR0, DIR0_CW);
     gpio_put(SPEPPER_DIR1, DIR1_CCW);
@@ -704,8 +701,30 @@ void main_core1()
     //char x = 'F';
     while (true) {
         // 等待按键按下
-        while(gpio_get(BUTTON_1)){
+        while(1){
             sleep_ms(10);
+            if(!gpio_get(BUTTON_1)){
+                sleep_ms(10);
+                if(!gpio_get(BUTTON_1)){
+                    MAX_ACCEL=160000.0f;
+                    V_START=(190.0f*RPM);
+                    V_START_SLOW=(150.0f*RPM);
+                    V_MAX=(300.0f*RPM);
+                    V_MAX_SLOW=(280.0f*RPM);
+                    break;
+                }
+            }
+            if(!gpio_get(BUTTON_0)){
+                sleep_ms(10);
+                if(!gpio_get(BUTTON_0)){
+                    MAX_ACCEL=160000.0f;
+                    V_START=(50.0f*RPM);
+                    V_START_SLOW=(50.0f*RPM);
+                    V_MAX=(100.0f*RPM);
+                    V_MAX_SLOW=(100.0f*RPM);
+                    break;
+                }
+            }
         }
         absolute_time_t t1 = get_absolute_time();
         // 采集每一块的颜色
@@ -736,7 +755,7 @@ int main(void)
     printf("Init.\n");
     uart_init(uart0, BAUD_RATE);
     init_io();
-    sleep_ms(10);
+    sleep_ms(100);
     flash_init();
     if(!gpio_get(BUTTON_0)){
         //do_flash_test();
