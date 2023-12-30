@@ -32,9 +32,9 @@
 const uint i2c_gpio[2][2] = {{14,15}, {12,13}};
 
 // 根据实际测试结果调整电机初始角度
-#define STEPPER0_OFFSET 115
-#define STEPPER1_OFFSET 30
-#define STEPPER2_OFFSET 320
+#define STEPPER0_OFFSET 100
+#define STEPPER1_OFFSET 110
+#define STEPPER2_OFFSET 375
 
 // GPIO操作掩码，可以同时操作多个GPIO
 #define MASK_STEPRR_01 ((1 << SPEPPER_STEP0) | (1 << SPEPPER_STEP1))

@@ -13,12 +13,12 @@
 7.提供详尽的装配教程，适合新手看的那种（待进行）。  
 8.完善物料清单。（待进行）  
 9.优化固件刷写速度。（待进行）  
-10.补充性能测试数据。（待进行）  
+10.补充性能测试数据。（已完成）  
 
 
 ![Image text](./Picture/cube_robot.png)
 
-V10版本演示视频：video/VID_20220618_165444.mp4
+V10版本演示视频：video/VID_20220618_165444.mp4  
 V11版本（21步版本）的演示视频：http://www.bilibili.com/video/BV1Qt4y1476Y?share_medium=android&share_source=copy_link&bbid=XYF29BCF6DF22C72C26DED32037959465ED97&ts=1657889031274  
 V20版本的演示视频：待补充  
 
@@ -84,6 +84,7 @@ make
 ````
 cd ./src_21_step/mcu
 mkdir build
+cd build
 export PICO_SDK_PATH=xxxxxxxx
 cmake ..
 make
@@ -127,6 +128,7 @@ Windows也行，不过我没验证过。
 ````
 cd src
 mkdir build
+cd build
 export PICO_SDK_PATH=xxxxxxxx
 cmake ..
 make
