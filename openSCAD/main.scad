@@ -19,6 +19,7 @@ cube_rotate=0; //0 78 45
 //可以微调尺寸，解决3D打印ABS小尺寸零件时变形的问题
 //根据打印机情况和使用的耗材类型调整（使用PLA的话不用调，基本不变形，但是强度很低）
 //claw_3d_print();
+/*
 claw_size_x=18.7+0.1;
 claw_size_y=18.7-0.5;
 claw_r=5;
@@ -59,13 +60,45 @@ module claw_1(dir)
             cube([claw_r, claw_r, 6]);
             translate([claw_r, claw_r, 0]) cylinder(h=6,r=claw_r);
         }
-        //intersection() {
-        //    cylinder(h=6, r=3.5, $fn=4);
-        //    cube([3.5, 3.5, 6]);
-        //}
     }
 }
-
+*/
+// ------------------------------------------------------------------
+//夹持魔方的结构，需要根据使用的魔方调整形状，铣加工版本
+// m3螺丝孔，需要使用丝锥攻丝
+m3_hole = 2.5;
+claw_size_x=18.8;
+claw_size_y=18.8;
+claw_r=5.2;
+claw_height=5;
+module claw(){
+    difference(){
+        union(){
+            translate([-claw_size_x/2, -claw_size_y/2, 0 ]) cube([claw_size_x,claw_size_y,17]);
+            translate([-claw_size_x/2, -claw_size_y/2, 17]) claw_1(0);
+            translate([claw_size_x/2,  -claw_size_y/2, 17]) claw_1(1);
+            translate([claw_size_x/2,  claw_size_y/2,  17]) claw_1(2);
+            translate([-claw_size_x/2, claw_size_y/2,  17]) claw_1(3);
+            translate([0, 0, -7]) cylinder(h=7,r=5);
+        }
+        // 电机轴
+        translate([0, 0, -7 ]) cylinder(h=13,r=2.5);
+        // 磁铁位置
+        translate([8.1/sqrt(2)+0.1, 8.1/sqrt(2)+0.1, 0]) cylinder(h=3,r=3.1);
+        // 顶丝孔
+        translate([0,0,-7+3]) rotate([0,90,0]) cylinder(h=50,r=m3_hole/2,center=true);
+    }
+    
+}
+// 一个爪子
+module claw_1(dir){
+    rotate([0,0,dir*90]){
+        difference(){
+            cube([3.5, 3.5, claw_height]);
+            translate([claw_r, claw_r, 0]) cylinder(h=claw_height,r=claw_r);
+        }
+    }
+}
 // ------------------------------------------------------------------
 // 可活动步进电机支架 打印2个
 module m3_hole(len1=10, len2=3)
@@ -76,7 +109,7 @@ module m3_hole(len1=10, len2=3)
     }
 }
 
-module stepper_shelf(style=0){
+module stepper_shelf(style=0,sensor=0){
     union(){
         // 固定步进电机
         translate([0,0,42/2+0.5]) rotate([90,0,0]){
@@ -94,45 +127,31 @@ module stepper_shelf(style=0){
                 translate([-31/2, -31/2, 0])m3_hole(10,3);
                 translate([0, 0, 8-2-0.5]) cylinder(h=10,d=22+1);
                 cylinder(h=20,d=7,center=true);
+                // 霍尔安装位置
+                if(sensor == 0){
+                    translate([(42-10.2)/2, 0, 4/2])cube([10.2,10.2,4],center=true);
+                }else{
+                    translate([-(42-10.2)/2, 0, 4/2])cube([10.2,10.2,4],center=true);
+                }
             }
         }
-        // 固定霍尔传感
-        sensour_height = 10;
-        translate([0,5.5,sensour_height/2]){
-            cube([6,3,sensour_height],center=true);
-        }
-        
+        // 滑块
         if(style == 0){
-            // 滑块
             size_x = 42;
-            size_y = 48+15;
+            size_y = 48+8;
             height = 10;
             r1 = height/2/sin(60);
             difference(){
                 union(){
-                    translate([-size_x/2+r1/2,-size_y/2+7,-height/2]) rotate([90,0,0]) 
+                    translate([-size_x/2+r1/2,-size_y/2,-height/2]) rotate([90,0,0]) 
                         cylinder(size_y, r=r1, center=true, $fn=6);
-                    translate([size_x/2-r1/2,-size_y/2+7,-height/2]) rotate([90,0,0]) 
+                    translate([size_x/2-r1/2,-size_y/2,-height/2]) rotate([90,0,0]) 
                         cylinder(size_y, r=r1, center=true, $fn=6);
-                    translate([0,-size_y/2+7,-height/2]) 
+                    translate([0,-size_y/2,-height/2]) 
                         cube([size_x,size_y,10],center=true);
                 }
-            }
-            // 
-            for(i=[0,1]){
-                mirror([i,0,0])
-                    difference(){
-                        union(){
-                            translate([size_x/2,-size_y/2+7,0]) rotate([90,0,0]) 
-                                cylinder(h=size_y,d=6,center=true, $fn=4);
-                            translate([size_x/2-4/2,-28, 0])
-                                cube([4,16,6],center=true);
-                        }
-                        translate([size_x/2,-28, 0])
-                            cylinder(h=6,d=4);
-                        translate([size_x/2+3,-size_y/2+7,0]) rotate([90,0,0]) 
-                            cube([6,6,size_y+1],center=true);
-                    }
+                translate([ 15,0.1,-2.5]) rotate([90,0,0]) cylinder(h=5,d=m3_nut_hole_d);
+                translate([-15,0.1,-2.5]) rotate([90,0,0]) cylinder(h=5,d=m3_nut_hole_d);
             }
         }
         // 固定电机，不可活动
@@ -140,39 +159,14 @@ module stepper_shelf(style=0){
             size_x = 42;
             size_y = 48+8+5;
             height = 20;
-            translate([0,-(size_y-40)/2+7,-height/2])
-                cube([size_x,size_y-40,height],center=true);
-            translate([0,-51,-height/2])
-                cube([size_x,10,height],center=true);
+            translate([0,-(size_y-40)/2+3,-height/2])
+                cube([size_x,15,height],center=true);
+            translate([0,-52,-height/2])
+                cube([size_x,8,height],center=true);
         }
     }
 }
-// ------------------------------------------------------------------
-// 定位弹片，打印4个
-module spring(){
-    spring_height=2.5;
-    translate([-5.5,0,0])
-    difference(){
-        cylinder(h=spring_height,d=4,center=true);
-        translate([10,0,0]) cube([20,20,20],center=true);
-    }
-    difference(){
-        translate([-1.5,0,0]) cube([8.5,38,spring_height],center=true);
-        translate([-5+1.5,0,0]) cube([1.5,30,99],center=true);
-        hull(){
-            translate([0,-25/2+2,0]) cylinder(h=99, d=3.4,center=true);
-            translate([0,-25/2-2,0]) cylinder(h=99, d=3.4,center=true);
-        }
-        hull(){
-            translate([0,25/2+2,0]) cylinder(h=99, d=3.4,center=true);
-            translate([0,25/2-2,0]) cylinder(h=99, d=3.4,center=true);
-        }
-        hull(){
-            translate([-3,+6,0]) cylinder(h=99, d=2,center=true);
-            translate([-3,-6,0]) cylinder(h=99, d=2,center=true);
-        }
-    }
-}
+
 
 // ------------------------------------------------------------------
 // 用于旋转魔方的十字结构
@@ -208,24 +202,39 @@ module cube_spin()
 // ------------------------------------------------------------------
 // 使魔方中间层只能单向旋转的部件
 module cube_block(){
-    difference(){// 主体
-        translate([0,1,0]) cube([17,32,6],center=true);
-        translate([0,3,0]) cube([9,18,99],center=true);
-        rotate([0,-90,0]) cylinder(h=99,d=2.4,center=true);
-            
+    cube_block_fixed();
+    cube_block_move();
+}
+module cube_block_fixed(){
+    difference(){
+        union(){
+            // 主体
+            difference(){
+                translate([0,1,-1.5]) cube([17,32,9],center=true);
+                translate([0,3,0]) cube([9,18,99],center=true);
+                rotate([0,-90,0]) cylinder(h=99,d=2.4,center=true);
+            }
+            // 底部限位
+            translate([-5,7,-6]) cube([10,9,4.5]);
+        }
+        hull(){
+            translate([0,8,-1.5])rotate([0,-90,0]) cylinder(h=99,d=1.8,center=true);
+            translate([0,8+1.6,-1.5])rotate([0,-90,0]) cylinder(h=99,d=1.8,center=true);
+        }
     }
-    difference(){// 弹簧固定器
+    // 弹簧固定器
+    difference(){
         translate([-5,-15,0]) cube([10,5,10]);
         translate([0,0,6]) rotate([90,0,0]) cylinder(h=99,d=m3_nut_hole_d);
     }
-    translate([-5,7,-3]) cube([10,9,2]);// 底部限位
-    difference(){// 固定螺丝孔
-        translate([0,-10.5,0]) cube([34,9,6],center=true);
-        translate([-13,30,00]) rotate([90,0,0]) cylinder(h=99,d=3.4);
-        translate([13,30,0]) rotate([90,0,0]) cylinder(h=99,d=3.4);
+    // 固定螺丝孔，两个M3通孔
+    difference(){ 
+        translate([0,-10.5,-1.5]) cube([34,9,9],center=true);
+        translate([-13,30,-1.5]) rotate([90,0,0]) cylinder(h=99,d=3.4);
+        translate([13,30,-1.5]) rotate([90,0,0]) cylinder(h=99,d=3.4);
     }
-    
-    //rotate([0,0,0]) //x =18
+}
+module cube_block_move(){
     translate([4,0,0]) rotate([0,-90,0]) difference(){
         union(){
             hull(){
@@ -241,13 +250,14 @@ module cube_block(){
         cylinder(h=99,d=2.4,center=true);
     }
 }
+
 // 滑轨
 module rail(){
     dx=60;
     dy=75;
     height=10;
     height_bot=9;
-    gap=0.4;//滑块间隙
+    gap=0.2;//滑块间隙,0.4 -> 0.2
     cut_d=42+2*5*tan(30)+gap*2;
     translate([0,-dy/2+12,-height/2]) {
         union(){
@@ -256,19 +266,35 @@ module rail(){
                     cube([dx,dy,height+height_bot],center=true);
                 rotate([90,0,0])
                     cylinder(h=99,d=cut_d,center=true,$fn=6);
-                // 弹片固定孔
-                translate([27,10,5-7]) cylinder(h=99, d=m3_nut_hole_d);
-                translate([27,-15,5-7]) cylinder(h=99, d=m3_nut_hole_d);
-                translate([-27,10,5-7]) cylinder(h=99, d=m3_nut_hole_d);
-                translate([-27,-15,5-7]) cylinder(h=99, d=m3_nut_hole_d);
             }
             translate([0,0,-height/2-height_bot/2-gap/2])
                 cube([dx,dy,height_bot-gap],center=true);
+            translate([0,34,-3])
+                difference(){
+                    cube([dx,7,25],center=true);
+                    translate([0,-3, 5]) rotate([90,0,0]) {
+                        cylinder(h=1.2,d=12.3,center=true);
+                    }
+                    translate([-13,-3, 5]) rotate([90,0,0]) {
+                        cylinder(h=1.2,d=12.3,center=true);
+                    }
+                    translate([13,-3, 5]) rotate([90,0,0]) {
+                        cylinder(h=1.2,d=12.3,center=true);
+                    }
+                }
         }
     }
 }
 
 // ------------------------------------------------------------------
+module round_cube(x,y,z,radius){
+    hull(){
+        translate([radius,radius,0])cylinder(h=z,r=radius);
+        translate([-radius+x,radius,0])cylinder(h=z,r=radius);
+        translate([radius,-radius+y,0])cylinder(h=z,r=radius);
+        translate([-radius+x,-radius+y,0])cylinder(h=z,r=radius);
+    }
+}
 // 大底板
 module base_board(){
     dx = 148;
@@ -276,30 +302,33 @@ module base_board(){
     // 主体
     difference(){
         union(){
-            translate([-30,-dy/2,-25])
-                 cube([dx,dy,6]);
+            translate([-30,-dy/2,-25-3])
+                 cube([dx,dy,6+3]);
             translate([46,-118,-25]){
-                translate([0+2.5 ,0+3.5 ,0]) cylinder(h=10,d=8);
-                translate([0+2.5 ,83+3.5,0]) cylinder(h=10,d=8);
-                translate([65+2.5,0+3.5 ,0]) cylinder(h=10,d=8);
-                translate([65+2.5,83+3.5,0]) cylinder(h=10,d=8);
+                translate([0+2.5 ,20+2.5 ,0]) cylinder(h=10,d=8);
+                translate([0+2.5 ,85+2.5,0]) cylinder(h=10,d=8);
+                translate([65+2.5,20+2.5 ,0]) cylinder(h=10,d=8);
+                translate([65+2.5,85+2.5,0]) cylinder(h=10,d=8);
             }
         }
         translate([30,35,-30])
-             cube([99,99,20]);
-        translate([30,-110,-30])
-             cube([80,75,20]);
-        translate([-24,0,-22]) rotate([0,0,-90]) translate([0,1,0]) 
+             round_cube(120,120,20,15);
+        translate([30,-91,-30])
+             round_cube(80,56,20,15);
+        translate([30,-157,-30])
+             cube([99,56,20]);
+        // 固定棘轮
+        translate([-24,0,-22-1.5]) rotate([0,0,-90]) translate([0,1,0]) 
         {
-            cube([17.4,32.4,6.4],center=true);
+            cube([17.4,32.4,20],center=true);
             translate([-13,-7+7,0]) rotate([90,0,0]) cylinder(h=99,d=m3_nut_hole_d);
             translate([13,-7+7,0]) rotate([90,0,0]) cylinder(h=99,d=m3_nut_hole_d);
         }
         translate([46,-118,-15]){
-            translate([0+2.5 ,0+3.5 ,0]) cylinder(h=50,d=3,center=true);
-            translate([0+2.5 ,83+3.5,0]) cylinder(h=50,d=3,center=true);
-            translate([65+2.5,0+3.5 ,0]) cylinder(h=50,d=3,center=true);
-            translate([65+2.5,83+3.5,0]) cylinder(h=50,d=3,center=true);
+            translate([0+2.5 ,20+2.5 ,0]) cylinder(h=50,d=3,center=true);
+            translate([0+2.5 ,85+2.5,0]) cylinder(h=50,d=3,center=true);
+            translate([65+2.5,20+2.5 ,0]) cylinder(h=50,d=3,center=true);
+            translate([65+2.5,85+2.5,0]) cylinder(h=50,d=3,center=true);
         }
     }
     // 滑台
@@ -311,7 +340,7 @@ module base_board(){
     }
     // 步进电机支架
     translate([62,0,0]) rotate([0,0,90]){
-        stepper_shelf(style=1);
+        stepper_shelf(style=1,sensor=1);
     }
     // 颜色传感器支架
     for(i=[-56/2-10,+56/2+10]){
@@ -329,8 +358,11 @@ module base_board(){
                     translate([25/2,0,0])cylinder(h=99,d=m3_hole_d,center=true);
                     translate([0,4,4]) cube([19, 4, 20],center=true);
                 }
-       
             }
+    }
+    for(i=[-56/2-10,+56/2+10]){
+        translate([25,i,-16]) 
+            cube([10,4,10],center=true);
     }
 }
 // 风扇固定架
@@ -370,38 +402,36 @@ module color_sensour()
 
 
 module PCBA(){
-    translate([60,-110,-13])
-        rotate([0,0,90])text("PCBA");
-    
-    translate([46,-118,-15]) difference(){
-        cube([70,90,1.6]);
-        translate([0+2.5 ,0+3.5 ,0]) cylinder(h=50,d=m3_hole_d,center=true);
-        translate([0+2.5 ,83+3.5,0]) cylinder(h=50,d=m3_hole_d,center=true);
-        translate([65+2.5,0+3.5 ,0]) cylinder(h=50,d=m3_hole_d,center=true);
-        translate([65+2.5,83+3.5,0]) cylinder(h=50,d=m3_hole_d,center=true);
+    //translate([60,-110,-13])
+    //    rotate([0,0,90])text("PCBA");
+    translate([46,-98,-15]) difference(){
+        cube([70,70,1.6]);
+        translate([0+2.5 ,0+2.5 ,0]) cylinder(h=50,d=m3_hole_d,center=true);
+        translate([0+2.5 ,65+2.5,0]) cylinder(h=50,d=m3_hole_d,center=true);
+        translate([65+2.5,0+2.5 ,0]) cylinder(h=50,d=m3_hole_d,center=true);
+        translate([65+2.5,65+2.5,0]) cylinder(h=50,d=m3_hole_d,center=true);
     }
 }
 
 
 // ------------------------------------------------------------------
 // 
-module module_a1(cube_rotate)
+module module_a1(cube_rotate,sensor=0)
 {
     translate([0,-8,42/2+0.5]){
         rotate([-90,0,0]){
             //  步进电机
             color("grey") rotate([0,0,180]) stepper42();
             // 法兰联轴器
-            color("white") translate([0,0,25]) rotate([180,0,45+cube_rotate]) flange();
+            //color("white") translate([0,0,25]) rotate([180,0,45+cube_rotate]) flange();
             // 魔方爪
-            translate([0,0,25]) 
-                rotate([0,0,cube_rotate]) claw();
+            translate([0,0,20]) 
+                color("white") rotate([0,0,cube_rotate]) claw();
         } 
+        translate([0,10.6,-24])color("grey")megnet();
     }
     // 步进电机支架
-    stepper_shelf();
-    translate([27,-28,1]) spring();
-    translate([-27,-28,1]) rotate([0,0,180]) spring();
+    stepper_shelf(0,sensor);
 }
 
 module module_a2(cube_rotate)
@@ -425,14 +455,20 @@ module cyl(x){
         cylinder(h=x, d=3.4);
     }
 }
-
+module megnet(){
+    difference(){
+        cube([40,5.3,14],center=true);
+        translate([-30/2,0,0])rotate([90,0,0])cylinder(h=99,d=3.5,center=true);
+        translate([30/2,0,0])rotate([90,0,0])cylinder(h=99,d=3.5,center=true);
+    }
+}
 // top
-translate([0,0,21.5]) rotate([0,cube_rotate,0]) rubik_cube();
+translate([0,0,21.5]) rotate([0,cube_rotate,0]) rotate([90,-90,0])rubik_cube();
 translate([0,-57.5,0]) {
-    module_a1(cube_rotate);
+    module_a1(cube_rotate,sensor=0);
 }
 translate([0,57.5,0]) rotate([0,0,180]) {
-    module_a1(-cube_rotate);
+    module_a1(-cube_rotate,sensor=1);
 }
 translate([62,0,0]){
     rotate([0,0,90]) module_a2(-cube_rotate);
@@ -451,4 +487,5 @@ color("green") translate([-16,56/2+4,5]) rotate([180+90,180+45,0])
 color("green") translate([-16,-56/2-4,5]) rotate([90,45,0]) {
     color_sensour();
 }
+
 

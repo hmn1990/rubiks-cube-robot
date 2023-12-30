@@ -4,18 +4,29 @@ use <main.scad>
 
 
 
-// 以下分别打印1个
-//base_board();
+// 打印1个
+base_board();
+
+// 打印1个,和V1.1一样
 //cube_spin();
-rotate([180,0,0]) fan_holder();
 
-// 以下分别打印2个
+// 打印1个,和V1.1一样
+// rotate([180,0,0]) fan_holder();
+
+// 建议使用 爪子-铣加工.scad中的铣加工版本
+// 移除3D打印版本，如果需要，可将main.scad中的相关代码取消注释
 //claw_3d_print();
-//stepper_shelf();
 
-// 以下分别打印4个
-//spring();
+// 打印1个
+//stepper_shelf(0, 0);
 
+// 打印1个
+//stepper_shelf(0, 1);
+
+// 打印1个
+//rotate([0,90,0])cube_block_move();
+// 打印1个
+//cube_block_fixed();
 
 // 垫柱，打印不同尺寸的备用
 /*
