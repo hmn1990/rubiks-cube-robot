@@ -32,9 +32,9 @@
 const uint i2c_gpio[2][2] = {{14,15}, {12,13}};
 
 // 根据实际测试结果调整电机初始角度
-#define STEPPER0_OFFSET 485
-#define STEPPER1_OFFSET 440
-#define STEPPER2_OFFSET 325
+#define STEPPER0_OFFSET 115
+#define STEPPER1_OFFSET 30
+#define STEPPER2_OFFSET 320
 
 // GPIO操作掩码，可以同时操作多个GPIO
 #define MASK_STEPRR_01 ((1 << SPEPPER_STEP0) | (1 << SPEPPER_STEP1))
@@ -628,7 +628,6 @@ void tcs3472_dump(int i2c, uint16_t *r, uint16_t *g, uint16_t *b)
     i2c_stop(0);
 }
 // 调试用的，根据stdin输入的字符执行不同动作
-/*
 void debug_zero_offset(void)
 {
     int offset[3] = {0,0,0};
@@ -685,7 +684,6 @@ void debug_zero_offset(void)
         printf("offset = [%d, %d, %d]\n", offset[0], offset[1], offset[2]);
     }
 }
-*/
 
 
 // 主程序
@@ -707,10 +705,10 @@ void main_core1()
                 sleep_ms(10);
                 if(!gpio_get(BUTTON_1)){
                     MAX_ACCEL=160000.0f;
-                    V_START=(190.0f*RPM);
-                    V_START_SLOW=(150.0f*RPM);
-                    V_MAX=(300.0f*RPM);
-                    V_MAX_SLOW=(280.0f*RPM);
+                    V_START=(170.0f*RPM);
+                    V_START_SLOW=(80.0f*RPM);
+                    V_MAX=(250.0f*RPM);
+                    V_MAX_SLOW=(250.0f*RPM);
                     break;
                 }
             }
