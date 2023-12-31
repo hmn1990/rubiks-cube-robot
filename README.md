@@ -1,26 +1,34 @@
 # 三阶魔方还原机器人
 
 ## 介绍
-低成本魔方机器人设计，总物料成本200元左右。 含单片机源码（c语言）、结构图（openSCAD格式/STL格式）、主要器件BOM。 使用rp2040单片机控制，控制和魔方求解都使用单片机完成。 对于随机打乱的魔方，平均还原步骤数在21步左右，最坏情况22步。
+低成本魔方机器人设计。 含原理图、PCB、单片机源码（c语言）、结构图（openSCAD格式/STL格式）、主要器件BOM。 使用rp2040单片机控制，控制和魔方求解都使用单片机完成。 对于随机打乱的魔方，平均还原步骤数在21步左右，最坏情况22步。
 
-2023-12-30: V20版本目前进展：  
-1.提供原理图和PCB（已完成）。  
-2.解决滑台卡扣寿命短、容易断裂或者松动的问题，改为磁力固定（已完成）。  
-3.支持使用手机或者电脑的Type-C充电器供电（已完成）。  
-4.解决魔方夹持结构在长时间使用后容易松动、以及异常条件下可能断裂的问题（已完成）。  
-5.优化霍尔开关安装方式，简化安装步骤（已完成）。  
-6.解决棘轮结构噪声特别大的问题（已完成）。  
-7.提供详尽的装配教程，适合新手看的那种（待进行）。  
-8.完善物料清单。（待进行）  
-9.优化固件刷写速度。（待进行）  
-10.补充性能测试数据。（已完成）  
+V2.0版本更新内容：  
+1.提供原理图和PCB。  
+2.解决滑台卡扣寿命短、容易断裂或者松动的问题，改为磁力固定。  
+3.支持使用手机或者电脑的Type-C充电器供电。  
+4.解决魔方夹持结构在长时间使用后容易松动、以及异常条件下可能断裂的问题。  
+5.优化霍尔开关安装方式，简化安装步骤。  
+6.解决棘轮结构噪声特别大的问题。  
+7.提供详尽的装配教程，适合新手看的那种。  
+8.完善物料清单。  
+9.补充性能测试数据。  
+
+后续计划更新：  
+1.优化固件刷写速度。（待进行）  
 
 
 ![Image text](./Picture/cube_robot.png)
 
-V10版本演示视频：video/VID_20220618_165444.mp4  
-V11版本（21步版本）的演示视频：http://www.bilibili.com/video/BV1Qt4y1476Y?share_medium=android&share_source=copy_link&bbid=XYF29BCF6DF22C72C26DED32037959465ED97&ts=1657889031274  
-V20版本的演示视频：待补充  
+V1.0版本演示视频：video/VID_20220618_165444.mp4  
+V1.1版本（21步版本）的演示视频：http://www.bilibili.com/video/BV1Qt4y1476Y?share_medium=android&share_source=copy_link&bbid=XYF29BCF6DF22C72C26DED32037959465ED97&ts=1657889031274  
+V2.0版本的演示视频：https://b23.tv/s6q7KzU  
+装配与调试教程：  
+（1）控制板调试 https://b23.tv/Xj93aZk  
+（2）魔方的选购 https://b23.tv/2x8Be0n  
+（3）机械部分的组装 https://b23.tv/huJY1xt  
+（4）整机调试 https://b23.tv/o8LBCXT  
+
 
 
 ## 关于硬件设计
@@ -62,7 +70,7 @@ FLASH是可选的，如果不使用FLASH，平均还原步骤数在32步左右�
 
 
 ## 关于结构设计
-1、推荐使用**ABS材料**3D打印，喷嘴0.4mm，层高0.2mm，顶层5层、底层5层、外壳4圈、生成支撑。
+1、推荐使用**ABS材料**3D打印，喷嘴0.4mm，层高0.2mm，顶层5层、底层5层、外壳4圈、填充20%-40%，生成支撑。  
 
 
 ## 单片机固件编译(./src_21_step,平均还原步骤数在21步左右的版本)
@@ -91,7 +99,16 @@ make
 ````
 然后找到cube_robot.uf2，刷写到RP2040单片机即可。
 
+可以连接USB，使用minicom -D /dev/ttyACM0指令查看调试信息，例如：
+````
+color_detect: URUFUBDDUFRRFRDDFURLLLFUDLLLUBRDLRBFLDBDLBFFFBUBRBBRUD
+Find 21 step solution in 139ms: B F' D' L' B F R B' U2 R B U2 B2 R2 U F2 D' B2 L2 U F2 
+Totel time cost 7.772s: 
+color_detect: UFFFURURRBDRRRDDLFBUDBFFBDFLBLLDBUBDFURLLRBUDUDLLBFRUL
+Find 19 step solution in 95ms: F L2 B' R' L2 B L' B' F' D B2 D F2 D U B2 F2 L2 B2 
+Totel time cost 7.575s: 
 
+````
 **刷写SPI NAND FLASH**
 
 连接电脑和RP2040的串口，注意线一定要短，波特率高达1Mbps。
