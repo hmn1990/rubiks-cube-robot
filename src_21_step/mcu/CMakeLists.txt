@@ -21,6 +21,7 @@ pico_sdk_init()
 
 add_executable(cube_robot cube_robot.c color_detect.c spi_flash.c solve.c)
 
+pico_generate_pio_header(cube_robot ${CMAKE_CURRENT_LIST_DIR}/step_ctrl.pio)
 pico_set_program_name(cube_robot "cube_robot")
 pico_set_program_version(cube_robot "0.1")
 
@@ -28,7 +29,7 @@ pico_enable_stdio_uart(cube_robot 0)
 pico_enable_stdio_usb(cube_robot 1)
 
 # Add the standard library to the build
-target_link_libraries(cube_robot pico_stdlib pico_multicore hardware_spi hardware_uart)
+target_link_libraries(cube_robot pico_stdlib pico_multicore hardware_spi hardware_uart hardware_pio)
 
 pico_add_extra_outputs(cube_robot)
 
