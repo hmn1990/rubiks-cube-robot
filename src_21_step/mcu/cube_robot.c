@@ -48,7 +48,7 @@ const uint i2c_gpio[2][2] = {{14,15}, {12,13}};
 #define DIR2_CCW true
 #define DIR2_CW  false
 
-#define RPM       (200*16/60)
+#define RPM       (200.0f * 16 / 60)
 
 typedef struct step_ctrl_t{
     int s;    // 加速过程需要的步数
@@ -64,24 +64,19 @@ uint16_t color_buffer[54*3] = {0};
 char cube_str[55] = {0};
 char solution_str[70] = {0};
 step_ctrl stepper_ctrl[3] = {0};
+float speed_factor = 1.0f;
 
 void sample_color(uint32_t g, uint16_t *buffer);
 
 // -------------------------------------电机控制------------------------------------------------
-// TODO: 把这些全局变量去掉
-float MAX_ACCEL;
-float V_START;
-float V_START_SLOW;
-float V_MAX;
-float V_MAX_SLOW;
 
 // 开始电机控制
 // sm电机号0-2 steps：步数，v0：初始速度（脉冲/s），v：最高速度（脉冲/s），a：加速度（脉冲/s2）
 static void stepper_move_none_block(int sm, int steps, float v0, float v, float a)
 {
     step_ctrl *p_step_ctrl = &stepper_ctrl[sm];
-    p_step_ctrl -> vi = v0;
-    p_step_ctrl -> a = a;
+    p_step_ctrl -> vi = v0 * speed_factor;
+    p_step_ctrl -> a = a * speed_factor;
     p_step_ctrl -> s = (int)roundf((v * v - v0 * v0) / (2 * a)); // 计算加速过程需要的步数
     p_step_ctrl -> i = 0;
     p_step_ctrl -> steps = steps;
@@ -106,26 +101,33 @@ static void stepper_move_wait(int sm, int step_to_wait)
     volatile int *index = &stepper_ctrl[sm].i;
     while(*index <= step_to_wait);
 }
-static void stepper_move_01_with_color_cmd(int steps, float v0, float v, float a, const uint32_t *color_cmd, uint16_t *buffer)
+static void stepper_move_01_with_color_cmd(int steps, const uint32_t *color_cmd, uint16_t *buffer)
 {
-    stepper_move_none_block(0, steps, v0, v, a); 
-    stepper_move_none_block(1, steps, v0, v, a); 
+    const float V_START_WITH_LOAD = 190.0f*RPM;// 带载起跳速度
+    const float V_MAX_WITH_LOAD = 600.0f*RPM;  // 带载最大速度
+    const float A_MAX_WITH_LOAD = 5.5e5f;      // 带载最大加速度
+    // 采样延后量,解决速度快了采样不准确问题,在低速运行不出错的前提下，读取越晚越好
+    // 120可能出错 100不出错
+    const int SAMPLE_OFFSET = 90;              
+    stepper_move_none_block(0, steps, V_START_WITH_LOAD, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD); 
+    stepper_move_none_block(1, steps, V_START_WITH_LOAD, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD); 
     // 当 steps = 2400 时
     // 在0 400 800 1200 1600 2000 2400采集
-    if(color_cmd){
-        for(int i=0; i<=steps; i+=400){
-            uint32_t cmd = color_cmd[i/400];
-            if(cmd != 0){
-                if(i != steps){
-                    stepper_move_wait(0, i);
-                }else{
-                    stepper_move_wait_all(0);
-                }
-                sample_color(cmd, buffer);
+    if(color_cmd != 0){
+        for(int i=0; i<steps; i+=400){
+            if(color_cmd[i/400] != 0){
+                stepper_move_wait(0, i + SAMPLE_OFFSET);
+                sample_color(color_cmd[i/400], buffer);
             }
         }
     }
     stepper_move_wait_all(0);
+    if(steps >= 1600){
+        sleep_us(1200);
+    }
+    if(color_cmd != 0 && color_cmd[steps/400] != 0){
+        sample_color(color_cmd[steps/400], buffer);
+    }
 }
 // 计算脉冲延时
 static uint32_t stepper_move_calc(step_ctrl *p_step_ctrl)
@@ -152,7 +154,7 @@ static uint32_t stepper_move_calc(step_ctrl *p_step_ctrl)
 // PIO FIFO非满中断，每次处理耗时5us左右
 void pio_fifo_not_full_handler()
 {
-    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+    //gpio_put(PICO_DEFAULT_LED_PIN, 1);
     step_ctrl *p;
     uint32_t date;
     int sm;
@@ -168,7 +170,7 @@ void pio_fifo_not_full_handler()
             }
         }
     }
-    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    //gpio_put(PICO_DEFAULT_LED_PIN, 0);
 }
 // 初始化电机控制PIO
 static void init_stepper_ctrl(void)
@@ -290,38 +292,54 @@ void init_io(void)
 }
 // --------------- 魔方控制部分 -----------------------
 // 旋转魔方的上下(U D)面，注意参数只支持正数，U为逆时针，D为顺时针
-// 参数取值范围0 800 1600 2400
+// 参数取值范围0 800 1600 2400，不可以同时为0
+// U 黄色 0号电机
+// D 白色 1号电机
+// 支持合并操作，可以同时旋转U和D
 void cube_ud(int face_u, int face_d)
 {
     const int gap = 24;
-    // 步骤1：卡住魔方中间层
+    const float V_START_WITH_LOAD = 150.0f*RPM; // 带载起跳速度
+    const float V_MAX_WITH_LOAD = 1000.0f*RPM;  // 带载最大速度
+    const float A_MAX_WITH_LOAD = 4.5e5f;       // 带载最大加速度
+    // const float V_START_GAP = 100.0f*RPM;    // 卡住魔方中间层时的运行速度
     gpio_put(SPEPPER_DIR0, DIR0_CCW);
     gpio_put(SPEPPER_DIR1, DIR1_CW);
-    stepper_move_none_block(0, gap, V_START, V_MAX, MAX_ACCEL);
-    stepper_move(1, gap, V_START, V_MAX, MAX_ACCEL);
+    // 步骤1：卡住魔方中间层(V20版本框架更加坚固，不需要这个操作)
+    //stepper_move_none_block(0, gap, V_START_GAP, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD);
+    //stepper_move           (1, gap, V_START_GAP, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD);
     // 步骤2：旋转需要的角度
-    int min_val = face_u < face_d ? face_u : face_d;
-    if(min_val >= 0){
-        stepper_move_none_block(0, min_val, V_START_SLOW, V_MAX_SLOW, MAX_ACCEL);
-        stepper_move(1, min_val, V_START_SLOW, V_MAX_SLOW, MAX_ACCEL);
+    if(face_u > 0){
+        stepper_move_none_block(0, face_u, V_START_WITH_LOAD, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD);
     }
-        
-    face_u -= min_val;
-    face_d -= min_val;
-    if(face_u >= 0)
-        stepper_move(0, face_u, V_START_SLOW, V_MAX_SLOW, MAX_ACCEL);
-    if(face_d >= 0)
-        stepper_move(1, face_d, V_START_SLOW, V_MAX_SLOW, MAX_ACCEL);
-    // 步骤3：恢复初始位置
-    gpio_put(SPEPPER_DIR0, DIR0_CW);
-    gpio_put(SPEPPER_DIR1, DIR1_CCW);
-    stepper_move_none_block(0, gap, V_START, V_MAX, MAX_ACCEL);
-    stepper_move(1, gap, V_START, V_MAX, MAX_ACCEL);
+    if(face_d > 0){
+        stepper_move_none_block(1, face_d, V_START_WITH_LOAD, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD);
+    }
+    if(face_u > face_d){
+        stepper_move_wait_all(0);
+    }else{
+        stepper_move_wait_all(1);
+    }
+    // 步骤3：恢复初始位置(V20版本框架更加坚固，不需要这个操作)
+    //sleep_ms(1);
+    //gpio_put(SPEPPER_DIR0, DIR0_CW);
+    //gpio_put(SPEPPER_DIR1, DIR1_CCW);
+    //stepper_move_none_block(0, gap, V_START_GAP, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD);
+    //stepper_move           (1, gap, V_START_GAP, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD);
 }
 // 旋转魔方的左前右后面(L F R B),参数正负都可以，正数表示顺时针，负数表示逆时针
 // 参数取值范围 800 1600 -800 -1600
 void cube_lfrb(int steps)
 {
+    const float V_START_NO_LOAD = 170.0f*RPM;   // 空载起跳速度
+    const float V_MAX_NO_LOAD = 1500.0f*RPM;    // 空载最大速度 1500RPM = 80KHz
+    const float A_MAX_NO_LOAD = 15e5f;          // 空载最大加速度
+    const float V_START_WITH_LOAD = 170.0f*RPM; // 带载起跳速度
+    const float V_MAX_WITH_LOAD = 1000.0f*RPM;  // 带载最大速度
+    const float A_MAX_WITH_LOAD = 5.5e5f;       // 带载最大加速度
+    const float V_SLOW = 120.0f*RPM; // 最后一小段要低速运转,等待魔方减速
+    const int TOUCH_STEP = 256;
+    const int SLOW_STEP = 100;
     bool dir;
     if(steps > 0){
         dir = DIR2_CW;
@@ -331,24 +349,32 @@ void cube_lfrb(int steps)
     }
     // 步骤1：旋转臂接触魔方，接触之前应当减速，否则接触后受力突变，会丢步
     gpio_put(SPEPPER_DIR2, dir);
-    stepper_move(2, 256, V_START, V_MAX, MAX_ACCEL);
+    stepper_move(2, TOUCH_STEP, V_START_NO_LOAD, V_MAX_NO_LOAD, A_MAX_NO_LOAD);
     // 步骤2：旋转需要的角度
-    stepper_move(2, steps - 64, V_START, V_MAX, MAX_ACCEL);
+    stepper_move(2, steps - SLOW_STEP, V_START_WITH_LOAD, V_MAX_NO_LOAD, A_MAX_WITH_LOAD);
     // 步骤3：最后一小段要低速运转
-    stepper_move(2, 64, V_START_SLOW, V_START_SLOW, MAX_ACCEL);
+    stepper_move(2, SLOW_STEP, V_SLOW, V_SLOW, A_MAX_WITH_LOAD);
     // 步骤4：恢复初始位置
+    sleep_us(1200);
     gpio_put(SPEPPER_DIR2, !dir);
-    stepper_move(2, 256, V_START, V_MAX, MAX_ACCEL);
+    stepper_move(2, TOUCH_STEP, V_START_NO_LOAD, V_MAX_NO_LOAD, A_MAX_NO_LOAD);
 }
 
 // 翻转魔方,参数只能为正
 // 参数取值范围 800 1600 2400
+// 翻转魔方时，动力来自两个电机，可以设置较高的速度
 void flip_cube(int steps)
 {
+    const float V_START_WITH_LOAD = 190.0f*RPM;// 带载起跳速度
+    const float V_MAX_WITH_LOAD = 500.0f*RPM;  // 带载最大速度
+    const float A_MAX_WITH_LOAD = 5.5e5f;      // 带载最大加速度
     gpio_put(SPEPPER_DIR0, DIR0_CW);
     gpio_put(SPEPPER_DIR1, DIR1_CCW);
-    stepper_move_none_block(0, steps, V_START, V_MAX, MAX_ACCEL);
-    stepper_move(1, steps, V_START, V_MAX, MAX_ACCEL);
+    stepper_move_none_block(0, steps, V_START_WITH_LOAD, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD);
+    stepper_move           (1, steps, V_START_WITH_LOAD, V_MAX_WITH_LOAD, A_MAX_WITH_LOAD);
+    if(steps >= 1600){
+        sleep_us(1200);
+    }
 }
 // 采集颜色
 void cube_get_color(uint16_t *buffer)
@@ -366,23 +392,23 @@ void cube_get_color(uint16_t *buffer)
 
     gpio_put(SPEPPER_DIR0, DIR0_CW);
     gpio_put(SPEPPER_DIR1, DIR1_CCW);
-    stepper_move_01_with_color_cmd(2400, V_START, V_MAX, MAX_ACCEL, color_cmd_0_270_L, buffer); 
+    stepper_move_01_with_color_cmd(2400, color_cmd_0_270_L, buffer); 
     cube_lfrb(800);
-    stepper_move_01_with_color_cmd(1600, V_START, V_MAX, MAX_ACCEL, color_cmd_1_180_R, buffer); 
+    stepper_move_01_with_color_cmd(1600, color_cmd_1_180_R, buffer); 
     cube_lfrb(800);
-    stepper_move_01_with_color_cmd(2400, V_START, V_MAX, MAX_ACCEL, color_cmd_2_270_F, buffer); 
+    stepper_move_01_with_color_cmd(2400, color_cmd_2_270_F, buffer); 
     cube_lfrb(800);
-    stepper_move_01_with_color_cmd(1600, V_START, V_MAX, MAX_ACCEL, color_cmd_3_180_B, buffer); 
+    stepper_move_01_with_color_cmd(1600, color_cmd_3_180_B, buffer); 
     cube_lfrb(800);
-    stepper_move_01_with_color_cmd(2400, V_START, V_MAX, MAX_ACCEL, color_cmd_4_270_R, buffer); 
+    stepper_move_01_with_color_cmd(2400, color_cmd_4_270_R, buffer); 
     cube_lfrb(800);
-    stepper_move_01_with_color_cmd(1600, V_START, V_MAX, MAX_ACCEL, color_cmd_5_180_L, buffer); 
+    stepper_move_01_with_color_cmd(1600, color_cmd_5_180_L, buffer); 
     cube_lfrb(800);
-    stepper_move_01_with_color_cmd(800 , V_START, V_MAX, MAX_ACCEL, 0                , buffer); 
+    stepper_move_01_with_color_cmd(800 , 0                , buffer); 
     cube_lfrb(800);
-    stepper_move_01_with_color_cmd(1600, V_START, V_MAX, MAX_ACCEL, color_cmd_7_180_B, buffer); 
+    stepper_move_01_with_color_cmd(1600, color_cmd_7_180_B, buffer); 
     cube_lfrb(800);
-    stepper_move_01_with_color_cmd(1600, V_START, V_MAX, MAX_ACCEL, color_cmd_8_180  , buffer);
+    stepper_move_01_with_color_cmd(1600, color_cmd_8_180  , buffer);
 }
 // 拧魔方,支持如下参数
 // "U", "R", "F", "D", "L", "B"
@@ -556,7 +582,7 @@ char cube_tweak_str(char face_on_stepper_2, char *str)
 #define SDA_READ()  gpio_get(i2c_gpio[i2c][0])  
 #define SCL0()      gpio_set_dir(i2c_gpio[i2c][1], GPIO_OUT)
 #define SCL1()      gpio_set_dir(i2c_gpio[i2c][1], GPIO_IN)
-#define I2C_DELAY() sleep_us(2)
+#define I2C_DELAY() sleep_us(1)
 #define I2C_ACK     0
 #define I2C_NACK    1
 #define I2C_READ    1
@@ -704,6 +730,7 @@ void tcs3472_dump(int i2c, uint16_t *r, uint16_t *g, uint16_t *b)
 }
 void sample_color(uint32_t g, uint16_t *buffer)
 {
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
     if(g < 0xFFFF){
         uint16_t r0,g0,b0,r1,g1,b1;
         tcs3472_dump(0, &r0, &g0, &b0);
@@ -716,66 +743,40 @@ void sample_color(uint32_t g, uint16_t *buffer)
         buffer[(g&0xff) * 3 + 2] = b1;
         //printf("ID=(%u,%u) r0=%u g0=%u b0=%u r1=%u g1=%u b1=%u\n",g>>8,g&0xFF,r0,g0,b0,r1,g1,b1);
     } 
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
 }
-// 调试用的，根据stdin输入的字符执行不同动作
-/*
-void debug_zero_offset(void)
+// 调试用的
+static void show_time(char *s, absolute_time_t t1)
 {
-    int offset[3] = {0,0,0};
-    while (true) {
-        uint dir_pin=SPEPPER_DIR0, step_pin=SPEPPER_STEP0;
-        int index=0, value=0;
-        bool dir = false;
-        printf("input: ");
-        scanf("%d,%d", &index, &value);
-        switch (index)
-        {
-        case 0:
-            dir_pin=SPEPPER_DIR0;
-            step_pin=SPEPPER_STEP0;
-            break;
-        case 1:
-            dir_pin=SPEPPER_DIR1;
-            step_pin=SPEPPER_STEP1;
-            break;
-        case 2:
-            dir_pin=SPEPPER_DIR2;
-            step_pin=SPEPPER_STEP2;
-            break;
-        case 3: // debug
-            cube_ud(800,0);
-            cube_lfrb(800);
-            flip_cube(800);
-            cube_ud(0,800);
-            cube_ud(800,800);
-            cube_lfrb(-800);
-            flip_cube(1600);
-            cube_ud(1600,800);
-            cube_lfrb(1600);
-            cube_ud(1600,2400);
-            cube_lfrb(1600);
-            break;
-        case 4: // debug
-            flip_cube(800);
-            break;
-        default:
-            printf("index must be 0,1 or 2.\n");
-            continue;
-            break;
-        }
-        offset[index] += value;
-        if(value > 0){
-            dir = false;
-        }else{
-            dir = true;
-            value = -value;
-        }
-        gpio_put(dir_pin, dir);
-        stepper_move(step_pin, value, 30*RPM,90*RPM, MAX_ACCEL);
-        printf("offset = [%d, %d, %d]\n", offset[0], offset[1], offset[2]);
-    }
+    absolute_time_t t2 = get_absolute_time();
+    int tims_cost_in_us = (int)absolute_time_diff_us(t1, t2);
+    printf("%s Totel time cost %d.%03dms\n", s, tims_cost_in_us/1000, tims_cost_in_us%1000);
 }
-*/
+// cube_lfrb(800); cube_lfrb(1600);
+// flip_cube(800); flip_cube(1600); flip_cube(2400);
+// cube_ud(0,800); cube_ud(0,1600); cube_ud(0,2400);
+// cube_ud(800,2400); cube_ud(1600,2400); cube_ud(800,1600);
+static void debug_stepper_1(void)
+{
+    //cube_get_color(color_buffer);
+    
+    absolute_time_t t1;
+    t1 = get_absolute_time();
+    cube_lfrb(800);
+    show_time("flip_cube(800)", t1);
+    sleep_ms(400);
+
+    t1 = get_absolute_time();
+    cube_lfrb(1600);
+    show_time("cube_ud(0,2400)", t1);
+    sleep_ms(400);
+
+    cube_lfrb(-800);
+    sleep_ms(400);
+    cube_lfrb(-1600);
+    sleep_ms(400);
+    
+}
 // 主程序
 int main(void)
 {
@@ -823,26 +824,20 @@ int main(void)
             if(!gpio_get(BUTTON_1)){
                 sleep_ms(10);
                 if(!gpio_get(BUTTON_1)){
-                    MAX_ACCEL=160000.0f;
-                    V_START=(170.0f*RPM);
-                    V_START_SLOW=(80.0f*RPM);
-                    V_MAX=(250.0f*RPM);
-                    V_MAX_SLOW=(250.0f*RPM);
+                    speed_factor = 1.0f;// 降速设置
                     break;
                 }
             }
             if(!gpio_get(BUTTON_0)){
                 sleep_ms(10);
                 if(!gpio_get(BUTTON_0)){
-                    MAX_ACCEL=160000.0f;
-                    V_START=(50.0f*RPM);
-                    V_START_SLOW=(50.0f*RPM);
-                    V_MAX=(100.0f*RPM);
-                    V_MAX_SLOW=(100.0f*RPM);
+                    speed_factor = 0.1f;
                     break;
                 }
             }
         }
+        //debug_stepper_1();///
+        //continue;///
         absolute_time_t t1 = get_absolute_time();
         // 采集每一块的颜色
         cube_get_color(color_buffer);
