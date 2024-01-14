@@ -19,7 +19,8 @@
       "assert.h": "c",
       "solve.h": "c",
       "stdio.h": "c",
-      "cstdio": "c"
+      "cstdio": "c",
+      "color_detect.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false,
 }

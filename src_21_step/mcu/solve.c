@@ -28,11 +28,17 @@ uint8_t *lookup = NULL;
 
 // 寻找小于等于STEP_LIMIT的解
 // 使用树莓派4时的性能（time ./solve > log.txt）
-// STEP_LIMIT=22 测试10000个随机打乱的魔方，最大22步, 平均21.21步，耗时15秒
-// STEP_LIMIT=21 测试10000个随机打乱的魔方，最大21步, 平均20.77步，耗时1分19秒
-// STEP_LIMIT=20 测试10000个随机打乱的魔方，最大20步, 耗时82分53秒
-#define STEP_LIMIT           22
-#define NEED_VERIFY_CODE
+// STEP_LIMIT=24 P2_STEP_LIMIT_MAX=11 测试10000个随机打乱的魔方，最大24步, 平均21.68步，耗时6.824s
+// STEP_LIMIT=23 P2_STEP_LIMIT_MAX=11 测试10000个随机打乱的魔方，最大23步, 平均21.68步，耗时6.836s
+// STEP_LIMIT=22 P2_STEP_LIMIT_MAX=10 测试10000个随机打乱的魔方，最大22步, 平均21.21步，耗时11.405s
+// STEP_LIMIT=21 P2_STEP_LIMIT_MAX=10 测试10000个随机打乱的魔方，最大21步, 平均20.73步，耗时1m17.598s
+// STEP_LIMIT=20 P2_STEP_LIMIT_MAX=10 测试10000个随机打乱的魔方，最大20步, 耗时82分53秒
+
+// 使用树莓派时的性能
+// STEP_LIMIT=23 P2_STEP_LIMIT_MAX=11 测试50个随机打乱的魔方，耗时14.297s
+// STEP_LIMIT=22 P2_STEP_LIMIT_MAX=10 测试50个随机打乱的魔方，耗时9.127s
+#define STEP_LIMIT           23
+#define P2_STEP_LIMIT_MAX    11
 
 #define LOOKUP_TABLE_SIZE    74091948
 #define TWIST_MOVE(x)        get_u16(0, x)
@@ -495,8 +501,8 @@ int solve(const char *cubr_str, char *p)
                 // 生成阶段2的初始数据
                 int slice_sort = c.slice_sort;
                 int p2_step_limit = STEP_LIMIT - s1_len; //p2允许步骤数量
-                if(p2_step_limit > 10){
-                    p2_step_limit = 10;// 限制二阶段最多10步
+                if(p2_step_limit > P2_STEP_LIMIT_MAX){
+                    p2_step_limit = P2_STEP_LIMIT_MAX;// 限制二阶段最多10步
                 }
                 int u_edge = u_edge_start;
                 int d_edge = d_edge_start;

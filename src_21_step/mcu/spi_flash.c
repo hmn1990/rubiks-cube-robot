@@ -8,7 +8,8 @@
 #define SPI0_CSN 17
 #define SPI0_RX  16
 
-#define SPI_FLASH_FREQ (31250*1000) //125MHz/4
+//#define SPI_FLASH_FREQ (62500*1000) // 125MHz/2 = 62.5MHz
+#define SPI_FLASH_FREQ (31250*1000) // 125MHz/4 = 31.25MHz
 
 #define FLASH_DEVICE_RESET                              0xFF
 #define FLASH_JEDEC_ID                                  0x9F
@@ -185,7 +186,7 @@ static uint8_t flash_read_sr(uint8_t addr)
 
 void flash_init(void)
 {
-    // Enable SPI 0 at 31.25 MHz and connect to GPIOs
+    // Enable SPI 0 at SPI_FLASH_FREQ and connect to GPIOs
     spi_init(spi0, SPI_FLASH_FREQ);
     //printf("spi_frep=%d\n",spi_set_baudrate(spi0, SPI_FLASH_FREQ));
     gpio_set_function(SPI0_RX, GPIO_FUNC_SPI);
@@ -195,6 +196,13 @@ void flash_init(void)
     gpio_init(SPI0_CSN);
     gpio_put(SPI0_CSN, 1);
     gpio_set_dir(SPI0_CSN, GPIO_OUT);
+    // 设置驱动能力
+    gpio_set_drive_strength(SPI0_SCK, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate     (SPI0_SCK, GPIO_SLEW_RATE_FAST);
+    gpio_set_drive_strength(SPI0_TX,  GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate     (SPI0_TX,  GPIO_SLEW_RATE_FAST);
+    gpio_set_drive_strength(SPI0_CSN, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate     (SPI0_CSN, GPIO_SLEW_RATE_FAST);
     // 检查ID
     if(!flash_read_device_id()){
         printf("SPI FLASH ID ERROR.\n");

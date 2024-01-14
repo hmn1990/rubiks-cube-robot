@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <time.h>  
 
 //                           2-----------2------------1
 //                           | U1(0)   U2(1)   U3(2)  |
@@ -33,10 +34,14 @@ uint8_t *lookup = NULL;
 
 // 寻找小于等于STEP_LIMIT的解
 // 使用树莓派4时的性能（time ./solve > log.txt）
-// STEP_LIMIT=22 测试10000个随机打乱的魔方，最大22步, 平均21.21步，耗时15秒
-// STEP_LIMIT=21 测试10000个随机打乱的魔方，最大21步, 平均20.77步，耗时1分19秒
-// STEP_LIMIT=20 测试10000个随机打乱的魔方，最大20步, 耗时82分53秒
-#define STEP_LIMIT           21
+// STEP_LIMIT=24 P2_STEP_LIMIT_MAX=11 测试10000个随机打乱的魔方，最大24步, 平均21.68步，耗时6.824s
+// STEP_LIMIT=23 P2_STEP_LIMIT_MAX=11 测试10000个随机打乱的魔方，最大23步, 平均21.68步，耗时6.836s
+// STEP_LIMIT=22 P2_STEP_LIMIT_MAX=10 测试10000个随机打乱的魔方，最大22步, 平均21.21步，耗时11.405s
+// STEP_LIMIT=21 P2_STEP_LIMIT_MAX=10 测试10000个随机打乱的魔方，最大21步, 平均20.73步，耗时1m17.598s
+// STEP_LIMIT=20 P2_STEP_LIMIT_MAX=10 测试10000个随机打乱的魔方，最大20步, 耗时82分53秒
+#define STEP_LIMIT           22
+#define P2_STEP_LIMIT_MAX    10
+
 #define NEED_VERIFY_CODE
 
 #define LOOKUP_TABLE_SIZE    74091948
@@ -485,8 +490,8 @@ int solve(const char *cubr_str, char *p)
                 // 生成阶段2的初始数据
                 int slice_sort = c.slice_sort;
                 int p2_step_limit = STEP_LIMIT - s1_len; //p2允许步骤数量
-                if(p2_step_limit > 10){
-                    p2_step_limit = 10;// 限制二阶段最多10步
+                if(p2_step_limit > P2_STEP_LIMIT_MAX){
+                    p2_step_limit = P2_STEP_LIMIT_MAX;// 限制二阶段最多10步
                 }
                 int u_edge = u_edge_start;
                 int d_edge = d_edge_start;
@@ -510,6 +515,7 @@ int solve(const char *cubr_str, char *p)
                     if(p21 <= p2_step_limit){
                         int max_p21_p22 = p21 > p22 ? p21 : p22;
                         for(int max_deep=max_p21_p22; max_deep<=p2_step_limit; max_deep++){
+                            //printf("max_deep=%d\n",max_deep);
                             int s2_len = search_p2(&cc2, max_deep, steps_record_p1 + s1_len);
                             if(s2_len >= 0){
                                 // 转换结果的表示方式
@@ -747,7 +753,11 @@ int verify(const char *str, const char *solution)
 
 int main(int argc ,char **argv)
 {
-    int fd = open("lookup.dat", O_RDONLY);
+    int fd = open("../prog_flash/lookup.dat", O_RDONLY);
+    if(fd == -1){
+        printf("can not find lookup.dat\n");
+        return 1;
+    }
     lookup = mmap(NULL, LOOKUP_TABLE_SIZE, PROT_READ, MAP_PRIVATE, fd, 0);
     //lookup = malloc(LOOKUP_TABLE_SIZE); //直接mmap，要比复制到内存性能好一点，尤其是只求解一个
     //memcpy(lookup, lookup_mmap, LOOKUP_TABLE_SIZE);
@@ -765,10 +775,20 @@ int main(int argc ,char **argv)
         char line_buffer[80];
         if(f != NULL){
             int min=99,max=0,avg=0;
-            for(int i=0;i<10000;i++){
+            for(int i=0;i<10000;i++){ /// 10000
                 fgets(line_buffer,79,f);
+                //if(i != 244){
+                //    continue;///
+                //}
                 printf("i=%d %s",i, line_buffer);
+                
+                struct timespec start, end;  
+                double diff;  
+                clock_gettime(CLOCK_REALTIME, &start); // 获取开始时间  
                 int len = solve(line_buffer, solution);
+                clock_gettime(CLOCK_REALTIME, &end); // 获取结束时间  
+                diff = (end.tv_sec - start.tv_sec) * 1e6 + (end.tv_nsec - start.tv_nsec) / 1e3; // 计算时间差（微秒）  
+                printf("Took %.2fus to run.\n", diff);  
                 if(len > max){
                     max = len;
                 }
@@ -778,6 +798,7 @@ int main(int argc ,char **argv)
                 avg += len;
                 printf("%s\n",solution);
                 assert(verify(line_buffer, solution)==1);
+                //assert(diff < 200000);
             }
             fclose(f);
             printf("min=%d, max=%d, avg=%.2f\n",min,max,avg / 10000.0);
