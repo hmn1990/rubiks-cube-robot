@@ -957,13 +957,15 @@ int main(void)
         //continue;///
         // 打乱魔方
         if(auto_test){
+            face = 'F';
+            printf("test case %d, ",scramble_index);
             absolute_time_t tt1 = get_absolute_time();
             strcpy(solution_str, scramble_string[scramble_index]);
             face = cube_tweak_str(face, solution_str);
             absolute_time_t tt2 = get_absolute_time();
             printf("Scramble time cost: %dms\n", (int)absolute_time_diff_us(tt1, tt2) / 1000);
             face = cube_tweak(face, "F0", 0);// 完成后,调整魔方朝向
-            sleep_ms(1000);
+            sleep_ms(500);
         }
         // 采集每一块的颜色
         absolute_time_t t1,t2,t3,t4;
@@ -987,19 +989,22 @@ int main(void)
         char *solution;
         if(cube_str[0] != 0){
             int steps = solve(cube_str, solution_str);
-            printf("%s(%d steps),", solution_str, steps);
-            solution = solution_str;
+            if(steps >= 0){
+                printf("%s(%d steps),", solution_str, steps);
+                solution = solution_str;
+            }else{
+                printf("Cube Error,");
+                solution = 0;
+            }
             //multicore_fifo_push_blocking((uint32_t)solution_str);
         }else{
-            printf("Error,");
+            printf("Color Error,");
             solution = 0;
         }
         t3 = get_absolute_time();
         printf("%dms,", (int)absolute_time_diff_us(t2, t3) / 1000);
         // 计算完成后执行对应的动作
-        if(!auto_test){
-            face = 'F';
-        }
+        face = 'F';
         if(solution != 0 && solution[0] != 0){
             face = cube_tweak_str(face, solution);
         }
@@ -1008,7 +1013,7 @@ int main(void)
         printf("%dms\n", (int)absolute_time_diff_us(t1, t4) / 1000);
         if(auto_test){
             face = cube_tweak(face, "F0", 0);// 完成后,调整魔方朝向
-            sleep_ms(1000);
+            sleep_ms(500);
             scramble_index++;
             if(scramble_index >= scramble_count){
                 scramble_index = 0;

@@ -197,8 +197,12 @@ typedef struct crood_p2_struct{
 } crood_p2_t;
 
 // 54个面的表示方式，转换为棱块角块表示方式
-static void cube_from_face_54(cube_t *c, const char *cube_str)
+// 54个面的表示方式，转换为棱块角块表示方式
+// 正常 返回1 错误 返回0
+static int cube_from_face_54(cube_t *c, const char *cube_str)
 {
+    int sum = 0;
+    // 棱块
     for(int i=0; i<12; i++){
         int index_a = edge_to_face[i][0];
         int index_b = edge_to_face[i][1];
@@ -209,9 +213,33 @@ static void cube_from_face_54(cube_t *c, const char *cube_str)
                 break;
             }
         }
-        c -> ep[i] = tmp % 12;
-        c -> er[i] = tmp / 12;
+        if(tmp < 24){
+            c -> ep[i] = tmp % 12;
+            c -> er[i] = tmp / 12;
+        }else{
+            printf("Error: invalid edge %c%c.\n",
+                   cube_str[index_a],cube_str[index_b]);
+            return 0;
+        }
     }
+    for(int i=0; i<12; i++){
+        for(int j=0; j<12; j++){
+            if(i != j && c -> ep[i] == c -> ep[j]){
+                printf("Error: repetition edge.\n");
+                return 0;
+            }
+        }
+    }
+    sum = 0;
+    for(int i=0; i<12; i++){
+        sum += c -> er[i];
+    }
+    if(sum%2 != 0){
+        // 单个棱块翻转，不影响后续程序运行
+        // 测试用例BRBBUUFLFUFULRLDDBLBRDFULBRFRFFDBBLRUUURLRDDDRFLDBUDFL
+        printf("Flipped edge, ignore.\n");
+    }
+    // 角块
     for(int i=0; i<8; i++){
         int index_a = corner_to_face[i][0];
         int index_b = corner_to_face[i][1];
@@ -224,9 +252,49 @@ static void cube_from_face_54(cube_t *c, const char *cube_str)
                 break;
             }
         }
-        c -> cp[i] = tmp % 8;
-        c -> cr[i] = tmp / 8;
+        if(tmp < 24){
+            c -> cp[i] = tmp % 8;
+            c -> cr[i] = tmp / 8;
+        }else{
+            printf("Error: invalid corner %c%c%c.\n",
+                   cube_str[index_a],cube_str[index_b],cube_str[index_c]);
+            return 0;
+        }
     }
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            if(i != j && c -> cp[i] == c -> cp[j]){
+                printf("Error: repetition corner.\n");
+                return 0;
+            }
+        }
+    }
+    sum = 0;
+    for(int i=0; i<8; i++){
+        sum += c -> cr[i];
+    }
+    if(sum%3 != 0){
+        // 单个角块旋转，不影响后续程序运行
+        printf("Twisted corner, ignore.\n");
+    }
+    // 校验棱块和角块之间的位置关系
+    int cornerParity = 0;
+    for (int i = 7; i >= 1; i--)
+        for (int j = i - 1; j >= 0; j--)
+            if (c->cp[j] > c->cp[i])
+                cornerParity++;
+    cornerParity = cornerParity % 2;
+    int edgeParity = 0;
+    for (int i = 11; i >= 1; i--)
+        for (int j = i - 1; j >= 0; j--)
+            if (c->ep[j] > c->ep[i])
+                edgeParity++;
+    edgeParity = edgeParity % 2;
+    if ((edgeParity ^ cornerParity) != 0) {
+        printf("ERROR: parity error.\n");
+        return 0;
+    }
+    return 1;
 }
 
 // 角块方向，取值范围[0,2186] 用于阶段1    
@@ -460,7 +528,10 @@ int solve(const char *cubr_str, char *p)
     crood_p1_t cc1;
     // TODO 两阶段可以合并的
     uint8_t steps_record_p1[STEP_LIMIT];
-    cube_from_face_54(&cube, cubr_str);
+    if(!cube_from_face_54(&cube, cubr_str)){
+        p[0] = 0;
+        return -1;
+    }
     cc1.twist = cube_encode_twist(&cube);
     cc1.flip = cube_encode_flip(&cube);
     cc1.slice_sort = cube_encode_slice_sort(&cube);
