@@ -34,9 +34,122 @@ uint8_t *lookup = NULL;
 // STEP_LIMIT=21 P2_STEP_LIMIT_MAX=10 测试10000个随机打乱的魔方，最大21步, 平均20.73步，耗时1m17.598s
 // STEP_LIMIT=20 P2_STEP_LIMIT_MAX=10 测试10000个随机打乱的魔方，最大20步, 耗时82分53秒
 
-// 使用树莓派时的性能
-// STEP_LIMIT=23 P2_STEP_LIMIT_MAX=11 测试50个随机打乱的魔方，耗时14.297s
-// STEP_LIMIT=22 P2_STEP_LIMIT_MAX=10 测试50个随机打乱的魔方，耗时9.127s
+// 使用树莓派RP2040时的性能(2024-03-28优化前)
+// 使用cube_robot.c里的debug_solve()测试
+// STEP_LIMIT=23 P2_STEP_LIMIT_MAX=11 测试50个随机打乱的魔方，耗时9123ms
+
+// 使用树莓派RP2040时的性能(2024-03-28优化后)
+// 使用cube_robot.c里的debug_solve()测试
+// STEP_LIMIT=23 P2_STEP_LIMIT_MAX=11 测试50个随机打乱的魔方，耗时8982ms
+
+/*
+优化前
+Find 21 step solution in 98ms: U B F2 D' R B F' R2 D2 L' F2 D' L2 D U2 F2 D U2 B2 R2 L2 
+Find 21 step solution in 76ms: D B D' R' D F2 U R' B F' L2 D2 F2 D' F2 D2 F2 R2 D' B2 L2 
+Find 22 step solution in 297ms: B2 L2 D2 L U R F' D2 R' L B2 F2 R2 D F2 D2 U F2 U R2 B2 U 
+Find 22 step solution in 246ms: F D2 U B D' B' L' F U L' U2 R2 D' U2 B2 U2 B2 L2 U R2 B2 D 
+Find 23 step solution in 837ms: F L F2 R' F2 U L D L F R2 B2 D2 U' R2 B2 U F2 L2 D' L2 D' R2 
+Find 21 step solution in 189ms: R F' L2 D' U L' D' F D' B L2 D' U' R2 F2 D F2 D2 L2 F2 D 
+Find 22 step solution in 137ms: B2 R2 U' B R2 D' U' B L D R' L2 F2 U' L2 D L2 U2 L2 B2 L2 F2 
+Find 23 step solution in 832ms: F R L' B U2 R' L' U B R F D2 R2 B2 U2 F2 L2 D U2 R2 D' R2 F2 
+Find 22 step solution in 35ms: F2 R2 D B L2 F' U' L D R D2 L2 F2 D' B2 D2 U' R2 U F2 U B2 
+Find 23 step solution in 756ms: F2 U B D' B2 L F2 L D U2 L F2 L2 U F2 R2 D' U' L2 U' R2 D R2 
+Find 23 step solution in 304ms: B2 L2 U F2 R' D F U' B' F L D2 F2 D' L2 F2 D U2 R2 U2 B2 R2 L2 
+Find 22 step solution in 142ms: D' F L2 B2 U' R B2 F U' L' F2 D2 B2 R2 D' R2 D' R2 L2 D R2 U2 
+Find 21 step solution in 98ms: R2 L F2 R B D B U' L' F2 D' B2 R2 U L2 B2 U' F2 D' F2 D 
+Find 21 step solution in 58ms: F D2 U' F' R2 B' L D' B' L2 D' U2 R2 D' F2 U B2 L2 U' B2 F2 
+Find 22 step solution in 187ms: F2 D R' B2 R D B' R B L' F2 D L2 U2 B2 U2 F2 L2 F2 U' R2 F2 
+Find 21 step solution in 71ms: U' L2 D R2 B' D2 R2 U L D2 U' L2 U B2 D2 U F2 R2 U' B2 L2 
+Find 21 step solution in 432ms: F' U' L' F L2 U F' D2 L' D' B' F2 U2 B2 L2 F2 D L2 F2 U L2 
+Find 21 step solution in 192ms: B R U' F R U2 R2 F' L2 F' R' L2 D U2 R2 D2 B2 R2 B2 U' R2 
+Find 23 step solution in 257ms: F2 D' F U' R B R' U F2 U' L' B2 D U F2 L2 F2 D' F2 U R2 U B2 
+Find 22 step solution in 636ms: F' L B' L' D' L' F' D U L2 F' R2 U R2 U' B2 U' B2 D B2 R2 L2 
+Find 22 step solution in 59ms: D2 U' R2 F' L' B' U B2 D F' R2 F2 U' L2 B2 D B2 D2 U R2 B2 D 
+Find 20 step solution in 47ms: B' D2 U R' D2 B' F' R' F' R2 F2 D U F2 D B2 R2 F2 D' F2 
+Find 21 step solution in 34ms: B2 L2 F U B' F L D' R L B2 F2 U2 R2 D' B2 D' R2 B2 U' F2 
+Find 20 step solution in 53ms: B2 D' U' F L F' R' F U L' U2 R2 B2 D2 U' F2 D L2 U L2 
+Find 22 step solution in 279ms: B' U' F' D' R F' R2 L' D R B F2 D' B2 U2 R2 F2 L2 D L2 U' F2 
+Find 22 step solution in 36ms: B2 D2 R D2 U' F' D2 B' U2 L D2 F2 D R2 B2 D' B2 U' F2 D2 L2 D2 
+Find 22 step solution in 72ms: B D U L B2 U' B R D2 F' U2 R2 D2 B2 U B2 L2 F2 U R2 U' L2 
+Find 23 step solution in 198ms: B2 D2 L2 F' R' U' R B' F2 L2 F D2 F2 R2 U' L2 D2 U F2 U' L2 U2 R2 
+Find 23 step solution in 91ms: B2 L' D' F R L2 D2 R2 F D' L' D F2 D2 U' L2 F2 D2 B2 D L2 U' F2 
+Find 22 step solution in 67ms: U' L F U' B U B2 U' R F' R2 L2 F2 R2 U B2 D2 U R2 U F2 R2 
+Find 21 step solution in 96ms: B2 F L' F2 R' F D2 R' F U2 R2 L2 U' L2 B2 D F2 D U2 L2 B2 
+Find 20 step solution in 87ms: D F' D U' R D' F2 R2 U B D2 L2 D B2 D' R2 B2 D' B2 U 
+Find 21 step solution in 292ms: B' D2 R B' L' D' R2 F' L2 F2 D2 B2 U' L2 U2 B2 U F2 D' L2 D 
+Find 22 step solution in 113ms: D2 B U R' L2 U2 L' U L B' R2 D' R2 D2 U' F2 U' B2 F2 U2 L2 D' 
+Find 20 step solution in 103ms: B F' L' B2 L U2 B' F' U F L D B2 D B2 F2 R2 D B2 D 
+Find 23 step solution in 110ms: B' U' R U R2 F' L' F2 U2 R F D' B2 R2 B2 F2 R2 D F2 D2 F2 L2 B2 
+Find 22 step solution in 175ms: B2 U B2 L' B F' U' F2 D2 U2 L' F2 D L2 F2 D' B2 U' F2 U' F2 U2 
+Find 20 step solution in 53ms: U2 R' B2 U2 B' R L U F' R2 D' U2 F2 L2 D' U' F2 U R2 B2 
+Find 21 step solution in 37ms: D B2 R' D2 R U' L' B' F D B2 D' U2 B2 U L2 U R2 L2 D F2 
+Find 20 step solution in 25ms: U2 B' U R U B D' U2 R' B2 L2 F2 D2 U R2 D R2 D' F2 D' 
+Find 22 step solution in 74ms: B2 R2 L D' R' L U' F' D2 B' U' R2 L2 U B2 D U2 F2 R2 L2 U2 F2 
+Find 22 step solution in 161ms: L2 U' R' L' B' F' R2 D R' B R2 D' R2 B2 U2 F2 U2 R2 D R2 D F2 
+Find 21 step solution in 77ms: B2 U L' F U2 R' F' D' L U' R' U B2 U' R2 F2 L2 F2 D2 F2 D2 
+Find 21 step solution in 125ms: B D R' U' B F D2 B R F L2 D' U2 F2 U' L2 U' L2 D2 R2 L2 
+Find 21 step solution in 65ms: U B' U' B U2 R D' U L F' D2 U2 F2 D' F2 L2 U F2 L2 U B2 
+Find 21 step solution in 122ms: U2 R' L' B2 U L D R B L' U2 F2 L2 B2 R2 D' R2 L2 B2 U B2 
+Find 23 step solution in 91ms: B' D U2 L F U L' B F' U R' L2 B2 U2 R2 D' B2 U2 F2 U' B2 D F2 
+Find 22 step solution in 267ms: B R' B' L' D' B2 L2 F' D B R2 D2 F2 R2 L2 D B2 L2 D' F2 U F2 
+Find 22 step solution in 88ms: B D2 L2 D R' U2 B' F' D B' D L2 D R2 L2 B2 D2 U R2 U' F2 U 
+Find 22 step solution in 146ms: L2 F U L2 U' R B' D L F' L2 U L2 B2 R2 U2 F2 D B2 R2 D' B2 
+totel time cost 9123ms
+
+优化后
+Find 21 step solution in 97ms: U B F2 D' R B F' R2 D2 L' F2 D' L2 D U2 F2 D U2 B2 R2 L2 
+Find 21 step solution in 75ms: D B D' R' D F2 U R' B F' L2 D2 F2 D' F2 D2 F2 R2 D' B2 L2 
+Find 22 step solution in 292ms: B2 L2 D2 L U R F' D2 R' L B2 F2 R2 D F2 D2 U F2 U R2 B2 U 
+Find 22 step solution in 242ms: F D2 U B D' B' L' F U L' U2 R2 D' U2 B2 U2 B2 L2 U R2 B2 D 
+Find 23 step solution in 823ms: F L F2 R' F2 U L D L F R2 B2 D2 U' R2 B2 U F2 L2 D' L2 D' R2 
+Find 21 step solution in 187ms: R F' L2 D' U L' D' F D' B L2 D' U' R2 F2 D F2 D2 L2 F2 D 
+Find 22 step solution in 135ms: B2 R2 U' B R2 D' U' B L D R' L2 F2 U' L2 D L2 U2 L2 B2 L2 F2 
+Find 23 step solution in 818ms: F R L' B U2 R' L' U B R F D2 R2 B2 U2 F2 L2 D U2 R2 D' R2 F2 
+Find 22 step solution in 35ms: F2 R2 D B L2 F' U' L D R D2 L2 F2 D' B2 D2 U' R2 U F2 U B2 
+Find 23 step solution in 742ms: F2 U B D' B2 L F2 L D U2 L F2 L2 U F2 R2 D' U' L2 U' R2 D R2 
+Find 23 step solution in 300ms: B2 L2 U F2 R' D F U' B' F L D2 F2 D' L2 F2 D U2 R2 U2 B2 R2 L2 
+Find 22 step solution in 140ms: D' F L2 B2 U' R B2 F U' L' F2 D2 B2 R2 D' R2 D' R2 L2 D R2 U2 
+Find 21 step solution in 97ms: R2 L F2 R B D B U' L' F2 D' B2 R2 U L2 B2 U' F2 D' F2 D 
+Find 21 step solution in 57ms: F D2 U' F' R2 B' L D' B' L2 D' U2 R2 D' F2 U B2 L2 U' B2 F2 
+Find 22 step solution in 184ms: F2 D R' B2 R D B' R B L' F2 D L2 U2 B2 U2 F2 L2 F2 U' R2 F2 
+Find 21 step solution in 70ms: U' L2 D R2 B' D2 R2 U L D2 U' L2 U B2 D2 U F2 R2 U' B2 L2 
+Find 21 step solution in 424ms: F' U' L' F L2 U F' D2 L' D' B' F2 U2 B2 L2 F2 D L2 F2 U L2 
+Find 21 step solution in 189ms: B R U' F R U2 R2 F' L2 F' R' L2 D U2 R2 D2 B2 R2 B2 U' R2 
+Find 23 step solution in 254ms: F2 D' F U' R B R' U F2 U' L' B2 D U F2 L2 F2 D' F2 U R2 U B2 
+Find 22 step solution in 627ms: F' L B' L' D' L' F' D U L2 F' R2 U R2 U' B2 U' B2 D B2 R2 L2 
+Find 22 step solution in 58ms: D2 U' R2 F' L' B' U B2 D F' R2 F2 U' L2 B2 D B2 D2 U R2 B2 D 
+Find 20 step solution in 46ms: B' D2 U R' D2 B' F' R' F' R2 F2 D U F2 D B2 R2 F2 D' F2 
+Find 21 step solution in 33ms: B2 L2 F U B' F L D' R L B2 F2 U2 R2 D' B2 D' R2 B2 U' F2 
+Find 20 step solution in 52ms: B2 D' U' F L F' R' F U L' U2 R2 B2 D2 U' F2 D L2 U L2 
+Find 22 step solution in 275ms: B' U' F' D' R F' R2 L' D R B F2 D' B2 U2 R2 F2 L2 D L2 U' F2 
+Find 22 step solution in 36ms: B2 D2 R D2 U' F' D2 B' U2 L D2 F2 D R2 B2 D' B2 U' F2 D2 L2 D2 
+Find 22 step solution in 72ms: B D U L B2 U' B R D2 F' U2 R2 D2 B2 U B2 L2 F2 U R2 U' L2 
+Find 23 step solution in 195ms: B2 D2 L2 F' R' U' R B' F2 L2 F D2 F2 R2 U' L2 D2 U F2 U' L2 U2 R2 
+Find 23 step solution in 89ms: B2 L' D' F R L2 D2 R2 F D' L' D F2 D2 U' L2 F2 D2 B2 D L2 U' F2 
+Find 22 step solution in 66ms: U' L F U' B U B2 U' R F' R2 L2 F2 R2 U B2 D2 U R2 U F2 R2 
+Find 21 step solution in 95ms: B2 F L' F2 R' F D2 R' F U2 R2 L2 U' L2 B2 D F2 D U2 L2 B2 
+Find 20 step solution in 86ms: D F' D U' R D' F2 R2 U B D2 L2 D B2 D' R2 B2 D' B2 U 
+Find 21 step solution in 285ms: B' D2 R B' L' D' R2 F' L2 F2 D2 B2 U' L2 U2 B2 U F2 D' L2 D 
+Find 22 step solution in 112ms: D2 B U R' L2 U2 L' U L B' R2 D' R2 D2 U' F2 U' B2 F2 U2 L2 D' 
+Find 20 step solution in 102ms: B F' L' B2 L U2 B' F' U F L D B2 D B2 F2 R2 D B2 D 
+Find 23 step solution in 109ms: B' U' R U R2 F' L' F2 U2 R F D' B2 R2 B2 F2 R2 D F2 D2 F2 L2 B2 
+Find 22 step solution in 172ms: B2 U B2 L' B F' U' F2 D2 U2 L' F2 D L2 F2 D' B2 U' F2 U' F2 U2 
+Find 20 step solution in 52ms: U2 R' B2 U2 B' R L U F' R2 D' U2 F2 L2 D' U' F2 U R2 B2 
+Find 21 step solution in 36ms: D B2 R' D2 R U' L' B' F D B2 D' U2 B2 U L2 U R2 L2 D F2 
+Find 20 step solution in 25ms: U2 B' U R U B D' U2 R' B2 L2 F2 D2 U R2 D R2 D' F2 D' 
+Find 22 step solution in 73ms: B2 R2 L D' R' L U' F' D2 B' U' R2 L2 U B2 D U2 F2 R2 L2 U2 F2 
+Find 22 step solution in 159ms: L2 U' R' L' B' F' R2 D R' B R2 D' R2 B2 U2 F2 U2 R2 D R2 D F2 
+Find 21 step solution in 76ms: B2 U L' F U2 R' F' D' L U' R' U B2 U' R2 F2 L2 F2 D2 F2 D2 
+Find 21 step solution in 123ms: B D R' U' B F D2 B R F L2 D' U2 F2 U' L2 U' L2 D2 R2 L2 
+Find 21 step solution in 64ms: U B' U' B U2 R D' U L F' D2 U2 F2 D' F2 L2 U F2 L2 U B2 
+Find 21 step solution in 120ms: U2 R' L' B2 U L D R B L' U2 F2 L2 B2 R2 D' R2 L2 B2 U B2 
+Find 23 step solution in 90ms: B' D U2 L F U L' B F' U R' L2 B2 U2 R2 D' B2 U2 F2 U' B2 D F2 
+Find 22 step solution in 262ms: B R' B' L' D' B2 L2 F' D B R2 D2 F2 R2 L2 D B2 L2 D' F2 U F2 
+Find 22 step solution in 87ms: B D2 L2 D R' U2 B' F' D B' D L2 D R2 L2 B2 D2 U R2 U' F2 U 
+Find 22 step solution in 144ms: L2 F U L2 U' R B' D L F' L2 U L2 B2 R2 U2 F2 D B2 R2 D' B2 
+totel time cost 8982ms
+*/
+
 #define STEP_LIMIT           23
 #define P2_STEP_LIMIT_MAX    11
 
@@ -58,7 +171,7 @@ uint8_t *lookup = NULL;
 #define PRUN22(x)            get_u8(73124268, x) 
 
 
-static int get_u8(int base, int offset)
+static inline int get_u8(int base, int offset)
 {
     uint32_t addr = base + offset;
     uint8_t *tmp = get_from_cache(addr);
@@ -66,24 +179,24 @@ static int get_u8(int base, int offset)
     //printf("u8 %x %x %x\n",base,offset,b);
     return b;
 } 
-static int get_u16(int base, int offset)
+static inline int get_u16(int base, int offset)
 {
     uint32_t addr = base + offset*2;
     uint8_t *tmp = get_from_cache(addr);
-    int b = tmp[addr%BLOCK_SIZE] | tmp[(addr%BLOCK_SIZE) + 1] << 8;
+    //int b = tmp[addr%BLOCK_SIZE] | tmp[(addr%BLOCK_SIZE) + 1] << 8;
     //printf("u16 %x %x %x\n",base,offset,b);
-    return b;
+    return *((uint16_t*)(tmp + addr % BLOCK_SIZE));
 } 
-static int get_u32(int base, int offset)
+static inline int get_u32(int base, int offset)
 {
     uint32_t addr = base + offset*4;
     uint8_t *tmp = get_from_cache(addr);
-    int b = tmp[addr%BLOCK_SIZE] | tmp[(addr%BLOCK_SIZE) + 1] << 8 |
-            tmp[(addr%BLOCK_SIZE) + 2] << 16 | tmp[(addr%BLOCK_SIZE) + 3] << 24;
+    //int b = tmp[addr%BLOCK_SIZE] | tmp[(addr%BLOCK_SIZE) + 1] << 8 |
+    //        tmp[(addr%BLOCK_SIZE) + 2] << 16 | tmp[(addr%BLOCK_SIZE) + 3] << 24;
     //printf("u32 %x %x %x\n",base,offset,b);
-    return b;
+    return *((uint32_t*)(tmp + addr % BLOCK_SIZE));
 } 
-static int get_u2(int base, int offset)
+static inline int get_u2(int base, int offset)
 {
     uint32_t addr = base + (offset>>2);
     uint8_t *tmp = get_from_cache(addr); 
