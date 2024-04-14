@@ -58,6 +58,7 @@ V2.0版本的演示视频：https://b23.tv/s6q7KzU
 （2）魔方的选购 https://b23.tv/2x8Be0n  
 （3）机械部分的组装 https://b23.tv/huJY1xt  
 （4）整机调试 https://b23.tv/o8LBCXT  
+（5）软件更新，10分钟搞定FLASH刷写 https://b23.tv/LJm5dEw  
 
 
 
