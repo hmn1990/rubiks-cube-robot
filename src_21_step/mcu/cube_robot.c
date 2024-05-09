@@ -88,9 +88,13 @@ static void stepper_move_none_block(int sm, int steps, float v0, float v, float 
 static void stepper_move_wait_all(int sm)
 {
     // 等待中断关闭
-    while(pio0->inte0 & (1u << (sm + PIO_INTR_SM0_TXNFULL_LSB)));
+    while(pio0->inte0 & (1u << (sm + PIO_INTR_SM0_TXNFULL_LSB))){
+        asm("nop");
+    }
     // 等待fifo清空
-    while(!pio_sm_is_tx_fifo_empty(pio0, sm));
+    while(!pio_sm_is_tx_fifo_empty(pio0, sm)){
+        asm("nop");
+    }
 }
 static void stepper_move(int sm, int steps, float v0, float v, float a)
 {
@@ -101,7 +105,9 @@ static void stepper_move(int sm, int steps, float v0, float v, float a)
 static void stepper_move_wait(int sm, int step_to_wait)
 {
     volatile int *index = &stepper_ctrl[sm].i;
-    while(*index <= step_to_wait);
+    while(*index <= step_to_wait){
+        asm("nop");
+    }
 }
 static void stepper_move_01_with_color_cmd(int steps, const uint32_t *color_cmd, uint16_t *buffer)
 {
