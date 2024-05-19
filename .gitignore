@@ -52,3 +52,5 @@ Mkfile.old
 dkms.conf
 
 build/
+src_v3/verify_on_pc/demo
+src_v3/verify_on_pc/log.txt
