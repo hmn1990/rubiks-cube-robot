@@ -1,7 +1,7 @@
 # 定义编译器和选项
 CC = gcc
 #CFLAGS = -Wall -g -ffunction-sections -fdata-sections
-CFLAGS = -Wall -O3
+CFLAGS = -Wall -O3 -Wincompatible-pointer-types
 
 # 定义所有源文件和目标文件
 SOURCES = main.c solve.c table.c # 根据实际替换

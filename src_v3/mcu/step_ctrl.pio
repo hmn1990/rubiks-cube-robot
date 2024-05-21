@@ -1,0 +1,34 @@
+;       3us
+;      +----+                      +----+
+;      |    |                      |    |
+; -----+    +----------------------+    +------
+;      |<----- osr*0.1 + 3.3 ----->|
+;
+; 对于HR4988电机驱动芯片，高电平和低电平时间都需要>=1us
+
+.program step_ctrl
+.wrap_target
+    pull block
+    set pins, 1
+    out y, 32 ; 低电平时间 = y*0.1us + 0.3us
+    set x, 26 ; 高电平时间 = 2.6us + 0.4us
+loop1:
+    jmp x-- loop1
+    set pins, 0
+loop2:
+    jmp y-- loop2
+.wrap
+
+
+% c-sdk {
+static inline void step_ctrl_program_init(PIO pio, uint sm, uint offset, uint pin) {
+   pio_gpio_init(pio, pin);
+   pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+   pio_sm_config c = step_ctrl_program_get_default_config(offset);
+   sm_config_set_set_pins(&c, pin, 1);
+   float div = clock_get_hz(clk_sys) / 10000000.0f;
+   sm_config_set_clkdiv(&c, div);
+   pio_sm_init(pio, sm, offset, &c);
+   pio_sm_set_enabled(pio, sm, true);
+}
+%}
