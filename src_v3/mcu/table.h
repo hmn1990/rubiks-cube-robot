@@ -1,5 +1,46 @@
 #ifndef TABLE_H
 #define TABLE_H
+/*
+00000014 CubieCubeUrf1
+00000014 CubieCubeUrf2
+00000018 CubieCubeMPermInv
+0000002c UtilCkmv2bit
+00000048 UtilStd2ud
+00000048 UtilUd2std
+0000006c CubieCubeUrfMove
+00000090 CubieCubeMoveCubeSym
+000000c0 CubieCubeFirstMoveSym
+00000140 CubieCubeCubeSym
+00000168 CubieCubeMoveCube
+000001e0 CoordCubeMPermMove
+00000240 CubieCubeSym8Move
+000002a4 UtilCnk
+00000300 CoordCubeMPermConj
+00000400 CubieCubeSymMult
+00000400 CubieCubeSymMultInv
+00000480 CubieCubeSymMove
+00000480 CubieCubeSymMoveUD
+00000ad0 CubieCubePerm2CombP
+00001000 CubieCubeFlipR2S
+00001116 CubieCubeTwistR2S
+00001180 CoordCubeCCombPConj
+00001500 CubieCubeFlipS2RF
+000015a0 CubieCubePermInvEdgeSym
+00001ef0 CoordCubeUDSliceConj
+00002d90 CoordCubeTwistMove
+00002f40 CoordCubeFlipMove
+0000459c CoordCubeUDSliceMove
+000081c4 CoordCubeMCPermPrun
+0000d840 CoordCubeCPermMove
+0000d840 CoordCubeEPermMove
+00013940 CoordCubeUDSliceTwistPrun
+00013b00 CubieCubeEPermR2S
+000144dc CoordCubeUDSliceFlipPrun
+0002f4e4 CoordCubeEPermCCombPPrun
+00051004 CoordCubeTwistFlipPrun
+
+*/
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <inttypes.h>

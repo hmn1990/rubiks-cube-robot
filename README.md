@@ -102,29 +102,43 @@ FLASH是可选的，如果不使用FLASH，平均还原步骤数在32步左右�
 
 ## 关于结构设计
 1、推荐使用**ABS材料**3D打印，喷嘴0.4mm，层高0.2mm，顶层5层、底层5层、外壳4圈、填充20%-40%，生成支撑。  
+## 单片机固件编译(./src_v3,平均还原步骤数在20步左右的版本，硬件上不需要外挂1Gbit FLASH)
+开发中，暂时不建议用。  
 
 
-## 单片机固件编译(./src_21_step,平均还原步骤数在21步左右的版本)
+## 单片机固件编译(./src_v2,平均还原步骤数在21步左右的版本)
 推荐使用Linux系统进行开发，可按照RP2040官方文档中的脚本搭建开发环境。  
 完成后，可额外安装pypy3，用于计算查找表。（此步骤可省略，提供生成好的）  
 Windows也行，不过我没验证过。  
+
+以Linux操作系统为例讲解,编译PR2040固件也可以使用Windows或者MacOS系统.  
+参考raspberrypi官网搭建开发环境:  
+https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html  
+也可以在b站搜索RP2040 SDK,找视频教程.  
+搭建开发环境后,即可编译.  
 
 **生成查找表**，并且进行验证（可选步骤,prog_flash目录下提供生成好的）
 
 运行完成后，得到lookup.dat,文件大小大约70MB
 ````
-cd ./src_21_step/verify_on_pc
+cd ./src_v2/verify_on_pc
 pypy3 prun.py
 make
 ./solve
 ````
 
 **编译单片机固件**
+修改CMakeLists.txt中的PICO_SDK_PATH，改为SDK的安装路径。  
 ````
-cd ./src_21_step/mcu
+# initalize pico_sdk from installed location
+# (note this can come from environment, CMake cache etc)
+set(PICO_SDK_PATH "/home/pi/pico/pico-sdk")
+````
+然后编译：
+````
+cd ./src_v2/mcu
 mkdir build
 cd build
-export PICO_SDK_PATH=xxxxxxxx
 cmake ..
 make
 ````
@@ -141,7 +155,12 @@ Totel time cost 7.575s:
 
 ````
 **刷写SPI NAND FLASH**
+https://gitee.com/hemn1990/uf2-nand-flash-prog  
+以前的NAND FLASH刷写方式依旧可以使用.  
+推荐使用新方式刷写NAND FLASH.  
+新方式刷写时间更短,操作更简单.  
 
+以下为旧的方式：  
 连接电脑和RP2040的串口，注意线一定要短，波特率高达1Mbps。   
 
 按住BUTTON_0的同时给魔方机器人上电，程序会计算NAND FLASH的CRC32校验和，如果失败，自动进入刷写模式   
@@ -168,14 +187,15 @@ Verify Block CRC32 565..........................................................
 
 ````
 
-## 单片机固件编译(./src,平均还原步骤数在32步左右的版本，硬件上不需要外挂1Gbit FLASH)
+## 单片机固件编译(./src_v1,平均还原步骤数在32步左右的版本，硬件上不需要外挂1Gbit FLASH)
 *此版本不再维护，慎用*  
+*与目前的硬件设计不完全匹配*  
 推荐使用Linux系统进行开发，可按照官方文档中的脚本搭建开发环境。  
 Windows也行，不过我没验证过。  
 
 搭建好之后
 ````
-cd src
+cd src_v1
 mkdir build
 cd build
 export PICO_SDK_PATH=xxxxxxxx

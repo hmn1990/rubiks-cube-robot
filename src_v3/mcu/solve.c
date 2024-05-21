@@ -1,8 +1,37 @@
+#include "pico/stdlib.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "table.h"
 #include "solve.h"
+
+#define IN_RAM(func_name) __not_in_flash_func(func_name)
+/*
+在电脑上使用gprof分析的结果，将频繁调用的函数放到RAM，提升性能
+有些函数被自动inline了，所以不显示
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ms/call  ms/call  name    
+ 53.73     14.98    14.98  1472682     0.01     0.02  SearchPhase1
+ 39.67     26.04    11.06   226749     0.05     0.05  SearchPhase2
+  3.23     26.94     0.90  4155293     0.00     0.00  CoordCubeSetWithPrun
+  1.76     27.43     0.49  1072668     0.00     0.02  SearchPhase1PreMoves
+  0.90     27.68     0.25    10000     0.03     2.77  SearchSolution
+  0.57     27.84     0.16    10000     0.02     0.02  verify
+  0.07     27.86     0.02   120000     0.00     0.00  CubieCubeURFConjugate
+  0.07     27.88     0.02                             _init
+  0.00     27.88     0.00    10000     0.00     2.77  solve
+*/
+
+/*
+ 查看MAP文件，一共用了6.7KB
+ *(.time_critical*)
+ .time_critical.SearchPhase2
+                0x200000c0      0x28c CMakeFiles/cube_robot.dir/solve.c.obj
+ .time_critical.SearchPhase1
+                0x2000034c     0x185c CMakeFiles/cube_robot.dir/solve.c.obj
+*/
+
 
 static inline int max(int a, int b) {
     return (a > b) ? a : b;
@@ -525,7 +554,7 @@ static int indexOf(const char *haystack, char needle) {
 
 //-1: no solution found
 // X: solution with X moves shorter than expectation. Hence, the length of the solution is  depth - X
-static int SearchPhase2(Search *this, int edge, int esym, int corn, int csym, int mid, int maxl, int depth, int lm) {
+static int IN_RAM(SearchPhase2)(Search *this, int edge, int esym, int corn, int csym, int mid, int maxl, int depth, int lm) {
     if (edge == 0 && corn == 0 && mid == 0) {
         return maxl;
     }
@@ -711,7 +740,7 @@ static  int SearchInitPhase2Pre(Search *this) {
  *      1: Try Next Power
  *      2: Try Next Axis
  */
-static  int SearchPhase1(Search *this, CoordCube *node, int ssym, int maxl, int lm) {
+static  int IN_RAM(SearchPhase1)(Search *this, CoordCube *node, int ssym, int maxl, int lm) {
     if (node->prun == 0 && maxl < 5) {
         if (this->allowShorter || maxl == 0) {
             this->depth1 -= maxl;
@@ -1047,7 +1076,7 @@ Search search;
 int solve(const char *facelets, char *result)
 {
     memset(&search, 0, sizeof(Search));
-    SearchSolution(&search, result, facelets, 22, 100000000, 10, 0);
+    SearchSolution(&search, result, facelets, 22, 100000000, 20, 0);
     //printf("%s\n", result);
     return search.solution.length;
 }
