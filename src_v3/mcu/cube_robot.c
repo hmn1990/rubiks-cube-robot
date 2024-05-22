@@ -64,6 +64,41 @@ float accel_factor = 1.0f;
 
 void sample_color(uint32_t g, uint16_t *buffer);
 
+// 按键处理程序
+volatile int button_status[2] = {0,0};
+void button_callback(uint gpio, uint32_t events) 
+{
+    int button_id;
+    static absolute_time_t button_fail_time[2] = {0,0};
+
+    if(BUTTON_0 == gpio){
+        button_id = 0;
+    }else if(BUTTON_1 == gpio){
+        button_id = 1;
+    }else{
+        return;
+    }
+    if(events == GPIO_IRQ_EDGE_RISE){
+        int time_diff = (int)absolute_time_diff_us(button_fail_time[button_id], get_absolute_time()) / 1000;
+        if(time_diff <= 20){
+            return;
+        }else{
+            button_status[button_id] = time_diff;
+        }
+    }
+    button_fail_time[button_id] = get_absolute_time();
+};
+bool button_break(void)
+{
+    if(button_status[0] || button_status[1]){
+        button_status[0] = 0;
+        button_status[1] = 0;
+        return true;
+    }else{
+        return false;
+    }
+}
+
 // -------------------------------------电机控制------------------------------------------------
 
 // 开始电机控制
@@ -371,7 +406,7 @@ void flip_cube(int steps)
     sleep_us(2000);
 }
 // 采集颜色
-void cube_get_color(uint16_t *buffer)
+int cube_get_color(uint16_t *buffer)
 {
     #define UD(x,y) ( ((x)<<8) | (y) )
     const uint32_t color_cmd_0_270_L[7] = {UD(36,42),UD(23,48),UD(38,44),UD(10,43),UD(9,15),UD(50,21),UD(11,17)};
@@ -387,22 +422,39 @@ void cube_get_color(uint16_t *buffer)
     gpio_put(SPEPPER_DIR0, DIR0_CW);
     gpio_put(SPEPPER_DIR1, DIR1_CCW);
     stepper_move_01_with_color_cmd(2400, color_cmd_0_270_L, buffer); 
+    if(button_break())return 1;
     cube_lfrb(800);
+    if(button_break())return 1;
     stepper_move_01_with_color_cmd(1600, color_cmd_1_180_R, buffer); 
+    if(button_break())return 1;
     cube_lfrb(800);
+    if(button_break())return 1;
     stepper_move_01_with_color_cmd(2400, color_cmd_2_270_F, buffer); 
+    if(button_break())return 1;
     cube_lfrb(800);
+    if(button_break())return 1;
     stepper_move_01_with_color_cmd(1600, color_cmd_3_180_B, buffer); 
+    if(button_break())return 1;
     cube_lfrb(800);
+    if(button_break())return 1;
     stepper_move_01_with_color_cmd(2400, color_cmd_4_270_R, buffer); 
+    if(button_break())return 1;
     cube_lfrb(800);
+    if(button_break())return 1;
     stepper_move_01_with_color_cmd(1600, color_cmd_5_180_L, buffer); 
+    if(button_break())return 1;
     cube_lfrb(800);
+    if(button_break())return 1;
     stepper_move_01_with_color_cmd(800 , 0                , buffer); 
+    if(button_break())return 1;
     cube_lfrb(800);
+    if(button_break())return 1;
     stepper_move_01_with_color_cmd(1600, color_cmd_7_180_B, buffer); 
+    if(button_break())return 1;
     cube_lfrb(800);
+    if(button_break())return 1;
     stepper_move_01_with_color_cmd(1600, color_cmd_8_180  , buffer);
+    return 0;
 }
 // 拧魔方,支持如下参数
 // "U", "R", "F", "D", "L", "B"
@@ -563,6 +615,9 @@ char cube_tweak_str(char face_on_stepper_2, char *str)
             //printf("%c%c\n",p_dst[i*2],p_dst[i*2+1]);
             face_on_stepper_2 = cube_tweak(face_on_stepper_2, p_dst+i*2, 0);
             i += 1;
+        }
+        if(button_break()){
+            return '\0';
         }
     }
     //face_on_stepper_2 = cube_tweak(face_on_stepper_2, "F0", 0);// 还原完成后,调整魔方朝向,这个不是必须的
@@ -873,19 +928,19 @@ const char scramble_string[30][21*3 + 1]=
     "U2 F2 D' B2 F2 D B2 U R2 U' B' L2 R F2 R D2 U2 F2 U' L U2 ",
     "L R2 B2 U2 L U2 F2 U2 B2 F2 R2 D' F D B2 R' U B2 F2 U R' ",
 };
-
 // ---------------------------------主程序----------------------------------------------
 int main(void)
 {
     stdio_init_all();    
     init_io();
     sleep_ms(100);
-    // 启动时等待USB建立链接，方便看到调试信息
-    if(!gpio_get(BUTTON_0)){
+    if(!gpio_get(BUTTON_0) || !gpio_get(BUTTON_1)){
+        // 启动时等待USB建立链接，方便看到调试信息
         sleep_ms(5000);
+        printf("Init.\n");
+        // 性能测试
+        debug_solve();
     }
-    printf("Init.\n");
-    // multicore_launch_core1(main_core1);
     // 步进电机回零
     gpio_put(SPEPPER_EN, 0);
     stepper_zero();
@@ -904,44 +959,51 @@ int main(void)
             while (1);            
         }
     }
+    // 初始化按键中断
+    gpio_set_irq_enabled_with_callback(BUTTON_0, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &button_callback);
+    gpio_set_irq_enabled_with_callback(BUTTON_1, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &button_callback);
     bool auto_test = false;
     int scramble_index = 0;
     char face = 'F';
     while (1) 
     {
         // 等待按键按下
-        while(!auto_test){
-            sleep_ms(10);
-            if(!gpio_get(BUTTON_1)){
-                sleep_ms(10);
-                if(!gpio_get(BUTTON_1)){
-                    absolute_time_t t_but_1 = get_absolute_time();
-                    while(!gpio_get(BUTTON_1));
-                    absolute_time_t t_but_2 = get_absolute_time();
-                    int time = (int)absolute_time_diff_us(t_but_1, t_but_2);
-                    if(time < 500*1000){
-                        // 按下时间小于0.5s
-                        speed_factor = 1.0f;
-                        accel_factor = 1.0f;
-                    }else{
-                        // 按下时间大于等于0.5s
-                        speed_factor = 0.125f;// 降速设置
-                        accel_factor = 0.125f * 0.125f;
-                    }
-                    break;
+        while(!auto_test)
+        {
+            if(button_status[1]){
+                printf("button 1 press %d ms.\n", button_status[1]);
+                if(button_status[1] < 500){
+                    // 按下时间小于0.5s
+                    speed_factor = 1.0f;
+                    accel_factor = 1.0f;
+                }else{
+                    // 按下时间大于等于0.5s
+                    speed_factor = 0.125f;// 降速设置
+                    accel_factor = 0.125f * 0.125f;
                 }
+                button_status[1] = 0;
+                auto_test = false;
+                break;
             }
-            if(!gpio_get(BUTTON_0)){
-                sleep_ms(10);
-                if(!gpio_get(BUTTON_0)){
-                    auto_test = true;
-                    scramble_index = 0;
-                    break;
+
+            if(button_status[0]){
+                printf("button 0 press %d ms.\n", button_status[0]);
+                if(button_status[0] < 500){
+                    // 按下时间小于0.5s
+                    speed_factor = 1.0f;
+                    accel_factor = 1.0f;
+                }else{
+                    // 按下时间大于等于0.5s
+                    speed_factor = 0.125f;// 降速设置
+                    accel_factor = 0.125f * 0.125f;
                 }
+                auto_test = true;
+                scramble_index = 0;
+                button_status[0] = 0;
+                break;
             }
         }
-        debug_solve();///
-        //continue;///
+
         // 打乱魔方
         if(auto_test){
             face = 'F';
@@ -949,6 +1011,11 @@ int main(void)
             absolute_time_t tt1 = get_absolute_time();
             strcpy(solution_str, scramble_string[scramble_index]);
             face = cube_tweak_str(face, solution_str);
+            if(face == 0){
+                printf("stop cube_tweak_str.\n");
+                auto_test = false;
+                continue;
+            }
             absolute_time_t tt2 = get_absolute_time();
             printf("Scramble time cost: %dms\n", (int)absolute_time_diff_us(tt1, tt2) / 1000);
             face = cube_tweak(face, "F0", 0);// 完成后,调整魔方朝向
@@ -957,7 +1024,12 @@ int main(void)
         // 采集每一块的颜色
         absolute_time_t t1,t2,t3,t4;
         t1 = get_absolute_time();
-        cube_get_color(color_buffer);
+        if(cube_get_color(color_buffer) == 1)
+        {
+            printf("stop cube_get_color.\n");
+            auto_test = false;
+            continue;
+        }
         // 识别颜色
         color_detect(color_buffer, cube_str);
         for(int i=0; i<54*3; i++){
@@ -983,7 +1055,6 @@ int main(void)
                 printf("Cube Error,");
                 solution = 0;
             }
-            //multicore_fifo_push_blocking((uint32_t)solution_str);
         }else{
             printf("Color Error,");
             solution = 0;
@@ -994,6 +1065,11 @@ int main(void)
         face = 'F';
         if(solution != 0 && solution[0] != 0){
             face = cube_tweak_str(face, solution);
+            if(face == 0){
+                printf("stop cube_tweak_str.\n");
+                auto_test = false;
+                continue;
+            }
         }
         t4 = get_absolute_time();
         printf("%dms,", (int)absolute_time_diff_us(t3, t4) / 1000);
