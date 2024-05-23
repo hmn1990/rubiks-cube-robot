@@ -1047,7 +1047,7 @@ Search search;
 int solve(const char *facelets, char *result)
 {
     memset(&search, 0, sizeof(Search));
-    SearchSolution(&search, result, facelets, 22, 100000000, 10, 0);
+    SearchSolution(&search, result, facelets, 22, 100000000, 20, 0);
     //printf("%s\n", result);
     return search.solution.length;
 }

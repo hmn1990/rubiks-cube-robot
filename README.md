@@ -2,6 +2,14 @@
 
 ## 介绍
 低成本魔方机器人设计。 含原理图、PCB、单片机源码（c语言）、结构图（openSCAD格式/STL格式）、主要器件BOM。 使用rp2040单片机控制，控制和魔方求解都使用单片机完成。 对于随机打乱的魔方，平均还原步骤数在21步左右。**扫描+计算+还原总时间在5.2秒左右。**  
+2024-05-23主要更新内容：  
+1.更换效率更高的魔方求解算法(感谢陈霜大神开源的min2phase，https://github.com/cs0x7f/min2phase.git)  
+(1) 将使用java实现的min2phase改为使用c语言实现.  
+(2) 测试10000个随机打乱的魔方,平均还原步骤数量由21.68步下降为20.25步.  
+(3) 测试50个随机打乱的魔方,平均计算时间由180ms缩短为128ms.  
+(4) 不需要NAND FLASH芯片W25N01,简化了设计,降低了成本.  
+2.新增急停功能,在魔方还原过程中按下BUTTON_0或者1可以停止还原.  
+
 2024-04-14主要更新内容：  
 优化NAND FLASH刷写.刷写工具另开新仓库存放:  
 https://gitee.com/hemn1990/uf2-nand-flash-prog  
@@ -103,7 +111,22 @@ FLASH是可选的，如果不使用FLASH，平均还原步骤数在32步左右�
 ## 关于结构设计
 1、推荐使用**ABS材料**3D打印，喷嘴0.4mm，层高0.2mm，顶层5层、底层5层、外壳4圈、填充20%-40%，生成支撑。  
 ## 单片机固件编译(./src_v3,平均还原步骤数在20步左右的版本，硬件上不需要外挂1Gbit FLASH)
-开发中，暂时不建议用。  
+修改CMakeLists.txt中的PICO_SDK_PATH，改为SDK的安装路径。  
+````
+# initalize pico_sdk from installed location
+# (note this can come from environment, CMake cache etc)
+set(PICO_SDK_PATH "/home/pi/pico/pico-sdk")
+````
+然后编译：  
+````
+cd ./src_v3/mcu
+mkdir build
+cd build
+cmake ..
+make
+````
+然后找到cube_robot.uf2，刷写到RP2040单片机即可。  
+可以连接USB，使用minicom -D /dev/ttyACM0指令查看调试信息.  
 
 
 ## 单片机固件编译(./src_v2,平均还原步骤数在21步左右的版本)
@@ -117,9 +140,9 @@ https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html
 也可以在b站搜索RP2040 SDK,找视频教程.  
 搭建开发环境后,即可编译.  
 
-**生成查找表**，并且进行验证（可选步骤,prog_flash目录下提供生成好的）
+**生成查找表**，并且进行验证（可选步骤,prog_flash目录下提供生成好的）  
 
-运行完成后，得到lookup.dat,文件大小大约70MB
+运行完成后，得到lookup.dat,文件大小大约70MB  
 ````
 cd ./src_v2/verify_on_pc
 pypy3 prun.py
@@ -134,7 +157,7 @@ make
 # (note this can come from environment, CMake cache etc)
 set(PICO_SDK_PATH "/home/pi/pico/pico-sdk")
 ````
-然后编译：
+然后编译：   
 ````
 cd ./src_v2/mcu
 mkdir build
@@ -142,9 +165,9 @@ cd build
 cmake ..
 make
 ````
-然后找到cube_robot.uf2，刷写到RP2040单片机即可。
+然后找到cube_robot.uf2，刷写到RP2040单片机即可。  
 
-可以连接USB，使用minicom -D /dev/ttyACM0指令查看调试信息，例如：
+可以连接USB，使用minicom -D /dev/ttyACM0指令查看调试信息，例如：  
 ````
 color_detect: URUFUBDDUFRRFRDDFURLLLFUDLLLUBRDLRBFLDBDLBFFFBUBRBBRUD
 Find 21 step solution in 139ms: B F' D' L' B F R B' U2 R B U2 B2 R2 U F2 D' B2 L2 U F2 
