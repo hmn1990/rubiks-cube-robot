@@ -1,7 +1,7 @@
 # 定义编译器和选项
 CC = gcc
 #CFLAGS = -Wall -g -ffunction-sections -fdata-sections
-CFLAGS = -Wall -O3 -Wincompatible-pointer-types
+CFLAGS = -Wall -O3 -g -Wincompatible-pointer-types
 
 # 定义所有源文件和目标文件
 SOURCES = main.c solve.c table.c # 根据实际替换
@@ -12,7 +12,7 @@ OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = demo
 
 # 默认规则
-all: $(EXECUTABLE)
+all: $(EXECUTABLE) 
 
 # 规则：将.c文件编译为.o文件
 %.o: %.c
